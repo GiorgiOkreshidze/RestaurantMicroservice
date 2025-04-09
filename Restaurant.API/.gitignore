@@ -1,0 +1,64 @@
+# User-specific files
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.dll
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Dd]ist/
+[Dd]eploy/
+[Dd]ebug/ 
+bin/
+obj/
+
+# User secrets
+secrets/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows Installer output folder
+_Install/
+
+# Windows Installer temporary files
+Thumbs.db
+ehthumbs.db
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# .NET Core files
+project.lock.json
+project.fragment.lock.json
+
+# .NET Core publish directory
+.publish/
+
+# npm package and node_modules directory
+node_modules/
+
+# Windows Installer output folder
+_Install/
+
+# Windows Installer temporary files
+Thumbs.db
+ehthumbs.db
+
+# Logs
+*.log
+*.log.*
+
+# JetBrains Rider
+.idea/
+
+# macOS
+.DS_Store
