@@ -1,23 +1,16 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Serilog;
 using System.Text;
-using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.Extensions.NETCore.Setup;
-using Amazon.Internal;
+
 using Restaurant.Infrastructure;
 using Restaurant.Application;
-using Restaurant.Domain;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 
+// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -62,12 +55,6 @@ builder.Services.AddSingleton<IDynamoDBContext>(sp =>
 
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
-// Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .CreateLogger();
-builder.Host.UseSerilog();
-
 // Add application services
 builder.Services.AddApplicationServices();
 
@@ -82,7 +69,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.MapGet("/", () =>
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("📥 FOR TEST USAGE! DO NOT DELETE: Incoming request to /");
+    return "Hello from Docker with logs!";
+});
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
