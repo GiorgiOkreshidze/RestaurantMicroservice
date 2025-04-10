@@ -1,27 +1,19 @@
-using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
-namespace Restaurant.Infrastructure.Repositories
+namespace Restaurant.Infrastructure.Repositories;
+
+public class LocationRepository(IDynamoDBContext context, ILogger<LocationRepository> logger)
+    : ILocationRepository
 {
-    public class LocationRepository : ILocationRepository
+    private readonly ILogger<LocationRepository> _logger = logger;
+
+    public async Task<IEnumerable<Location>> GetAllLocationsAsync()
     {
-        private readonly IDynamoDBContext _context;
-
-        public LocationRepository(IDynamoDBContext context, IConfiguration configuration)
-        {
-            _context = context;
-        }
-
-        public async Task<IEnumerable<Location>> GetAllLocationsAsync()
-        {
-            var conditions = new List<ScanCondition>();
-            return await _context.ScanAsync<Location>(conditions).GetRemainingAsync();
-        }
+        var conditions = new List<ScanCondition>();
+        if (conditions == null) throw new ArgumentNullException(nameof(conditions));
+        return await context.ScanAsync<Location>(conditions).GetRemainingAsync();
     }
 }

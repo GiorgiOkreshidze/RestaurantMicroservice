@@ -1,14 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
-
 using Restaurant.Infrastructure;
 using Restaurant.Application;
 
 var builder = WebApplication.CreateBuilder(args);
-
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -38,27 +34,8 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Configure Identity
-// builder.Services.AddIdentity<IdentityUser, IdentityRole>()
-//     .AddEntityFrameworkStores<ApplicationDbContext>()
-//     .AddDefaultTokenProviders();
-
-var awsOptions = builder.Configuration.GetAWSOptions();
-
-builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
-builder.Services.AddAWSService<IAmazonDynamoDB>();
-builder.Services.AddSingleton<IDynamoDBContext>(sp =>
-{
-    var client = sp.GetRequiredService<IAmazonDynamoDB>();
-    return new DynamoDBContext(client);
-});
-
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
-
-// Add application services
 builder.Services.AddApplicationServices();
-
-// Add infrastructure services
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
@@ -72,8 +49,8 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () =>
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("📥 FOR TEST USAGE! DO NOT DELETE: Incoming request to /");
-    return "Hello from Docker with logs!";
+    logger.LogInformation("📥 FOR TEST USAGE! DO NOT DELETE: Incoming request to / to check if pod really running");
+    return "POD IS ALIVE!";
 });
 app.UseHttpsRedirection();
 
