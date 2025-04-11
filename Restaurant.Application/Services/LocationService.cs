@@ -1,9 +1,7 @@
 using AutoMapper;
-using Restaurant.Application.DTOs;
+using Restaurant.Application.DTOs.Locations;
 using Restaurant.Application.Interfaces;
 using Restaurant.Infrastructure.Interfaces;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Restaurant.Application.Services
 {
@@ -22,6 +20,32 @@ namespace Restaurant.Application.Services
         {
             var locations = await _locationRepository.GetAllLocationsAsync();
             return _mapper.Map<IEnumerable<LocationDto>>(locations);
+        }
+
+        public async Task<IEnumerable<LocationSelectOptionDto>> GetAllLocationsForDropDownAsync()
+        {
+            var locations = await _locationRepository.GetAllLocationsAsync();
+            return locations.Select(location => new LocationSelectOptionDto
+            {
+                Id = location.Id,
+                Address = location.Address
+            });
+        }
+
+        /// <summary>
+        /// Retrieves a location by its unique identifier.
+        /// </summary>
+        /// <param name="id">The unique identifier of the location to retrieve.</param>
+        /// <returns>A LocationDto object if found; null if no location exists with the specified id.</returns>
+        public async Task<LocationDto?> GetLocationByIdAsync(string id)
+        {
+            var location = await _locationRepository.GetLocationByIdAsync(id);
+            if (location == null)
+            {
+                return null;
+            }
+
+            return _mapper.Map<LocationDto>(location);
         }
     }
 }

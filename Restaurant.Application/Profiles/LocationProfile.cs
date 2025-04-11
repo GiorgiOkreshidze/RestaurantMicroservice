@@ -1,5 +1,5 @@
 using AutoMapper;
-using Restaurant.Application.DTOs;
+using Restaurant.Application.DTOs.Locations;
 using Restaurant.Domain.Entities;
 
 namespace Restaurant.Application.Profiles
@@ -9,6 +9,7 @@ namespace Restaurant.Application.Profiles
         public LocationProfile()
         {
             CreateMap<Location, LocationDto>().ReverseMap();
+            CreateMap<Location, LocationSelectOptionDto>();
         }
     }
 }
