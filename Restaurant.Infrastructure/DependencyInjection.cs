@@ -26,7 +26,7 @@ public static class DependencyInjection
             DynamoDbFactory.CreateDynamoDbContext(sp.GetRequiredService<IAmazonDynamoDB>()));
 
         services.AddScoped<ILocationRepository, LocationRepository>();
-
+        services.AddScoped<IDishRepository, DishRepository>();
         return services;
     }
 }

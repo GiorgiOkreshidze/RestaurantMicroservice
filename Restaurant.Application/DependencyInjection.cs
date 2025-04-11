@@ -11,6 +11,7 @@ namespace Restaurant.Application
         {
             //services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ILocationService, LocationService>();
+            services.AddScoped<IDishService, DishService>();
             return services;
         }
     }
