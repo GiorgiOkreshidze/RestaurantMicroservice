@@ -1,5 +1,4 @@
 using Restaurant.Domain.Entities;
-using System.Threading.Tasks;
 
 namespace Restaurant.Infrastructure.Interfaces
 {

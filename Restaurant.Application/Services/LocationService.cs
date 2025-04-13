@@ -3,49 +3,35 @@ using Restaurant.Application.DTOs.Locations;
 using Restaurant.Application.Interfaces;
 using Restaurant.Infrastructure.Interfaces;
 
-namespace Restaurant.Application.Services
+namespace Restaurant.Application.Services;
+
+public class LocationService(ILocationRepository locationRepository, IMapper mapper) : ILocationService
 {
-    public class LocationService : ILocationService
+    public async Task<IEnumerable<LocationDto>> GetAllLocationsAsync()
     {
-        private readonly ILocationRepository _locationRepository;
-        private readonly IMapper _mapper;
+        var locations = await locationRepository.GetAllLocationsAsync();
+        return mapper.Map<IEnumerable<LocationDto>>(locations);
+    }
 
-        public LocationService(ILocationRepository locationRepository, IMapper mapper)
+    public async Task<IEnumerable<LocationSelectOptionDto>> GetAllLocationsForDropDownAsync()
+    {
+        var locations = await locationRepository.GetAllLocationsAsync();
+        return mapper.Map<IEnumerable<LocationSelectOptionDto>>(locations);
+    }
+
+    /// <summary>
+    /// Retrieves a location by its unique identifier.
+    /// </summary>
+    /// <param name="id">The unique identifier of the location to retrieve.</param>
+    /// <returns>A LocationDto object if found; null if no location exists with the specified id.</returns>
+    public async Task<LocationDto?> GetLocationByIdAsync(string id)
+    {
+        var location = await locationRepository.GetLocationByIdAsync(id);
+        if (location == null)
         {
-            _locationRepository = locationRepository;
-            _mapper = mapper;
+            return null;
         }
 
-        public async Task<IEnumerable<LocationDto>> GetAllLocationsAsync()
-        {
-            var locations = await _locationRepository.GetAllLocationsAsync();
-            return _mapper.Map<IEnumerable<LocationDto>>(locations);
-        }
-
-        public async Task<IEnumerable<LocationSelectOptionDto>> GetAllLocationsForDropDownAsync()
-        {
-            var locations = await _locationRepository.GetAllLocationsAsync();
-            return locations.Select(location => new LocationSelectOptionDto
-            {
-                Id = location.Id,
-                Address = location.Address
-            });
-        }
-
-        /// <summary>
-        /// Retrieves a location by its unique identifier.
-        /// </summary>
-        /// <param name="id">The unique identifier of the location to retrieve.</param>
-        /// <returns>A LocationDto object if found; null if no location exists with the specified id.</returns>
-        public async Task<LocationDto?> GetLocationByIdAsync(string id)
-        {
-            var location = await _locationRepository.GetLocationByIdAsync(id);
-            if (location == null)
-            {
-                return null;
-            }
-
-            return _mapper.Map<LocationDto>(location);
-        }
+        return mapper.Map<LocationDto>(location);
     }
 }

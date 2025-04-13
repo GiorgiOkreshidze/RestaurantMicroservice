@@ -1,35 +1,23 @@
 ﻿using AutoMapper;
-using Restaurant.Application.DTOs.Locations;
-using Restaurant.Application.Exceptions;
+using Restaurant.Application.DTOs.Dishes;
 using Restaurant.Application.Interfaces;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Application.Services
 {
-    public class DishService : IDishService
+    public class DishService(IDishRepository dishRepository, ILocationRepository locationRepository, IMapper mapper)
+        : IDishService
     {
-        private readonly IDishRepository _dishRepository;
-        private readonly ILocationRepository _locationRepository;
-        private readonly IMapper _mapper;
-
-        public DishService(IDishRepository dishRepository, ILocationRepository locationRepository, IMapper mapper)
+        public async Task<IEnumerable<DishDto>> GetSpecialtyDishesByLocationAsync(string locationId)
         {
-            _dishRepository = dishRepository;
-            _locationRepository = locationRepository;
-            _mapper = mapper;
+            var dishes = await dishRepository.GetSpecialtyDishesByLocationAsync(locationId);
+            return mapper.Map<IEnumerable<DishDto>>(dishes);
         }
 
-        public async Task<IEnumerable<LocationDishResponseDto>> GetSpecialtyDishesByLocationAsync(string locationId)
+        public async Task<IEnumerable<DishDto>> GetPopularDishesAsync()
         {
-            var location = await _locationRepository.GetLocationByIdAsync(locationId);
-
-            if (location == null)
-            {
-                throw new NotFoundException("Location", locationId);
-            }
-
-            var dishes = await _dishRepository.GetSpecialtyDishesByLocationAsync(locationId);
-            return _mapper.Map<IEnumerable<LocationDishResponseDto>>(dishes);
+            var dishes = await dishRepository.GetPopularDishesAsync();
+            return mapper.Map<IEnumerable<DishDto>>(dishes);
         }
     }
 }

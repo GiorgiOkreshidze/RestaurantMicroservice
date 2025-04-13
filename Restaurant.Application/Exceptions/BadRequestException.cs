@@ -16,6 +16,5 @@ namespace Restaurant.Application.Exceptions
         }
 
         public IDictionary<string, string[]>? ValidationErrors { get; set; }
-
     }
 }

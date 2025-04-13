@@ -1,9 +1,10 @@
-﻿using Restaurant.Application.DTOs.Locations;
+﻿using Restaurant.Application.DTOs.Dishes;
 
-namespace Restaurant.Application.Interfaces
+namespace Restaurant.Application.Interfaces;
+
+public interface IDishService
 {
-    public interface IDishService
-    {
-        Task<IEnumerable<LocationDishResponseDto>> GetSpecialtyDishesByLocationAsync(string locationId);
-    }
+    Task<IEnumerable<DishDto>> GetSpecialtyDishesByLocationAsync(string locationId);
+
+    Task<IEnumerable<DishDto>> GetPopularDishesAsync();
 }

@@ -1,19 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AutoMapper;
-using Restaurant.Application.DTOs.Locations;
+﻿using AutoMapper;
+using Restaurant.Application.DTOs.Dishes;
+using Restaurant.Domain.Entities;
 
-namespace Restaurant.Application.Profiles
+namespace Restaurant.Application.Profiles;
+
+public class DishProfile : Profile
 {
-    public class DishProfile : Profile
+    public DishProfile()
     {
-        public DishProfile() 
-        {
-            CreateMap<Domain.Entities.Dish, LocationDishResponseDto>()
-                                .ForMember(dest => dest.Price, opt => opt.MapFrom(src => decimal.Parse(src.Price)));
-        }
+        CreateMap<Dish, DishDto>()
+            .ForMember(dest =>
+                    dest.Price, opt =>
+                    opt.MapFrom(src => decimal.Parse(src.Price)
+                    )
+            );
+        CreateMap<Dish, DishDto>().ReverseMap();
     }
 }

@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
