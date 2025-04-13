@@ -1,6 +1,5 @@
-﻿using Amazon.Runtime.Internal;
+﻿using System.Net;
 using Restaurant.Application.Exceptions;
-using System.Net;
 
 namespace Restaurant.API.Middleware
 {
@@ -24,11 +23,15 @@ namespace Restaurant.API.Middleware
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             HttpStatusCode statusCode = HttpStatusCode.InternalServerError;
-            ErrorResponse problem = new();
+            ErrorResponse problem;
 
             switch (exception)
             {
                 case UnauthorizedException unauthorizedException:
+                    logger.LogWarning(
+                        unauthorizedException,
+                        "Unauthorized access attempt: {Path}",
+                        context.Request.Path);
                     statusCode = HttpStatusCode.Unauthorized;
                     problem = new ErrorResponse
                     {
@@ -37,13 +40,9 @@ namespace Restaurant.API.Middleware
                         Detail = unauthorizedException.InnerException?.Message,
                         Type = nameof(UnauthorizedException),
                     };
-                    logger.LogWarning(
-                        unauthorizedException,
-                        "Unauthorized access attempt: {Path}",
-                        context.Request.Path);
                     break;
-
                 case BadRequestException badRequestException:
+                    logger.LogWarning(exception, "Validation failed: {Path}", context.Request.Path);
                     statusCode = HttpStatusCode.BadRequest;
                     problem = new ErrorResponse
                     {
@@ -53,10 +52,9 @@ namespace Restaurant.API.Middleware
                         Type = nameof(BadRequestException),
                         Errors = badRequestException.ValidationErrors ?? new Dictionary<string, string[]>(),
                     };
-                    logger.LogWarning(exception, "Resource not found: {Path}", context.Request.Path);
                     break;
-
                 case NotFoundException notFound:
+                    logger.LogWarning(notFound, "Resource not found: {Message}", notFound.Message);
                     statusCode = HttpStatusCode.NotFound;
                     problem = new ErrorResponse
                     {
@@ -65,10 +63,9 @@ namespace Restaurant.API.Middleware
                         Detail = notFound.InnerException?.Message,
                         Type = nameof(NotFoundException),
                     };
-                    logger.LogWarning(notFound, "Validation failed: {Message}", notFound.Message);
                     break;
-
                 default:
+                    logger.LogError(exception, "Unhandled exception occurred");
                     problem = new ErrorResponse
                     {
                         Title = exception.Message,
@@ -76,8 +73,6 @@ namespace Restaurant.API.Middleware
                         Detail = exception.StackTrace,
                         Type = nameof(HttpStatusCode.InternalServerError),
                     };
-
-                    logger.LogError(exception, "Unhandled exception occurred");
                     break;
             }
 

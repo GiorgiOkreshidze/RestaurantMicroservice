@@ -7,13 +7,14 @@ using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 
-namespace Restaurant.Tests
+namespace Restaurant.Tests.ServiceTests
 {
     public class LocationServiceTests
     {
         private Mock<ILocationRepository> _locationRepositoryMock = null!;
         private ILocationService _locationService = null!;
         private IMapper _mapper = null!;
+        private List<Location> _locations;
 
         [SetUp]
         public void SetUp()
@@ -23,10 +24,35 @@ namespace Restaurant.Tests
             var config = new MapperConfiguration(cfg =>
             {
                 cfg.CreateMap<Location, LocationDto>().ReverseMap();
+                cfg.CreateMap<Location, LocationSelectOptionDto>().ReverseMap();
             });
             _mapper = config.CreateMapper();
 
             _locationService = new LocationService(_locationRepositoryMock.Object, _mapper);
+            
+            _locations = new List<Location>
+            {
+                new()
+                {
+                    Id = "1", 
+                    Address = "Location 1", 
+                    AverageOccupancy = 75.5, 
+                    Rating = 4.5, 
+                    TotalCapacity = 100, 
+                    ImageUrl = "http://testimage.com", 
+                    Description = "Test Description"
+                },
+                new()
+                {
+                    Id = "2", 
+                    Address = "Location 2",
+                    AverageOccupancy = 75.5, 
+                    Rating = 4.5, 
+                    TotalCapacity = 100, 
+                    ImageUrl = "http://testimage.com", 
+                    Description = "Test Description"
+                }
+            };
         }
 
         [Test]
@@ -64,32 +90,10 @@ namespace Restaurant.Tests
         }
 
         [Test]
-        public async Task GetLocationByIdAsync_InvalidId_ReturnsNull()
-        {
-            // Arrange
-            var invalidLocationId = "invalid-id";
-
-            _locationRepositoryMock
-                .Setup(repo => repo.GetLocationByIdAsync(invalidLocationId))
-                .ReturnsAsync((Location?)null);
-
-            // Act
-            var result = await _locationService.GetLocationByIdAsync(invalidLocationId);
-
-            // Assert
-            Assert.That(result, Is.Null);
-        }
-
-        [Test]
         public async Task GetAllLocationsAsync_ReturnsListOfLocationDto()
         {
-            // Arrange
-            var locations = new List<Location>
-            {
-                new() { Id = "test-id-1", Address = "Test Address 1", AverageOccupancy = 75.5, Rating = 4.5, TotalCapacity = 100, ImageUrl = "http://testimage.com", Description = "Test Description" },
-                new() {Id = "test-id-2", Address = "Test Address 2", AverageOccupancy = 75.5, Rating = 4.5, TotalCapacity = 100, ImageUrl = "http://testimage.com", Description = "Test Description"}
-            };
-            _locationRepositoryMock.Setup(repo => repo.GetAllLocationsAsync()).ReturnsAsync(locations);
+            // Arrange= 
+            _locationRepositoryMock.Setup(repo => repo.GetAllLocationsAsync()).ReturnsAsync(_locations);
 
             // Act
             var result = await _locationService.GetAllLocationsAsync();
@@ -99,25 +103,19 @@ namespace Restaurant.Tests
         }
 
         [Test]
-        public async Task GetAllLocationsAsync_ReturnsSelectOptionDtos_WhenLocationsExist()
+        public async Task GetAllLocationsAsync_LocationsExist_ReturnsSelectOptionDtos()
         {
             // Arrange
-            var mockedLocations = new List<Location>
-            {
-                new Location {Id = "1", Address = "Location 1", AverageOccupancy = 75.5, Rating = 4.5, TotalCapacity = 100, ImageUrl = "http://testimage.com", Description = "Test Description"},
-                new Location {Id = "2", Address = "Location 2", AverageOccupancy = 75.5, Rating = 4.5, TotalCapacity = 100, ImageUrl = "http://testimage.com", Description = "Test Description"}
-            };
-
             _locationRepositoryMock
                 .Setup(repo => repo.GetAllLocationsAsync())
-                .ReturnsAsync(mockedLocations);
+                .ReturnsAsync(_locations);
 
             // Act
             var result = await _locationService.GetAllLocationsForDropDownAsync();
 
             // Assert
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.ToList(), Has.Count.EqualTo(2));
+            Assert.That(result, Has.Count.EqualTo(2));
             Assert.That(result, Has.Exactly(1).Matches<LocationSelectOptionDto>(dto => dto.Id == "1" && dto.Address == "Location 1"));
             Assert.That(result, Has.Exactly(1).Matches<LocationSelectOptionDto>(dto => dto.Id == "2" && dto.Address == "Location 2"));
 
@@ -126,7 +124,7 @@ namespace Restaurant.Tests
         }
 
         [Test]
-        public async Task GetAllLocationsAsync_ReturnsEmptyList_WhenNoLocationsExist()
+        public async Task GetAllLocationsAsync_LocationDoesNotExist_ReturnsEmptyList()
         {
             // Arrange
             _locationRepositoryMock
@@ -143,5 +141,24 @@ namespace Restaurant.Tests
             // Verify the repository method was called once
             _locationRepositoryMock.Verify(repo => repo.GetAllLocationsAsync(), Times.Once);
         }
+        
+        [Test]
+        public async Task GetLocationByIdAsync_InvalidId_ReturnsNull()
+        {
+            // Arrange
+            var invalidLocationId = "invalid-id";
+
+            _locationRepositoryMock
+                .Setup(repo => repo.GetLocationByIdAsync(invalidLocationId))
+                .ReturnsAsync((Location?)null);
+
+            // Act
+            var result = await _locationService.GetLocationByIdAsync(invalidLocationId);
+
+            // Assert
+            Assert.That(result, Is.Null);
+        }
     }
+    
+    
 }

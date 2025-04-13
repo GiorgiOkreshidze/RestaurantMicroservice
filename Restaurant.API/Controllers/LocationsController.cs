@@ -2,21 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Locations;
 using Restaurant.Application.Interfaces;
-using System.Threading.Tasks;
+using Restaurant.Application.DTOs.Dishes;
 
 namespace Restaurant.API.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
-    public class LocationsController : ControllerBase
+    [Route("api/locations")]
+    public class LocationsController(ILocationService locationService, IDishService dishService) : ControllerBase
     {
-        private readonly ILocationService _locationService;
-        private readonly IDishService _dishService;
-        public LocationsController(ILocationService locationService, IDishService dishService)
-        {
-            _dishService = dishService;
-            _locationService = locationService;
-        }
         /// <summary>
         /// Gets all locations.
         /// </summary>
@@ -27,7 +20,7 @@ namespace Restaurant.API.Controllers
         [Produces("application/json")]
         public async Task<IActionResult> GetAllLocations()
         {
-            var locations = await _locationService.GetAllLocationsAsync();
+            var locations = await locationService.GetAllLocationsAsync();
             return Ok(locations);
         }
 
@@ -44,14 +37,7 @@ namespace Restaurant.API.Controllers
         [Produces("application/json")]
         public async Task<IActionResult> GetLocationById(string id)
         {
-            var location = await _locationService.GetLocationByIdAsync(id);
-            if (location == null)
-            {
-                return NotFound(new ErrorResponseDto
-                {
-                    Message = $"Location with ID '{id}' was not found"
-                });
-            }
+            var location = await locationService.GetLocationByIdAsync(id);
             return Ok(location);
         }
 
@@ -65,7 +51,7 @@ namespace Restaurant.API.Controllers
         [Produces("application/json")]
         public async Task<IActionResult> GetLocationSelectOptions()
         {
-            var options = await _locationService.GetAllLocationsForDropDownAsync();
+            var options = await locationService.GetAllLocationsForDropDownAsync();
             return Ok(options);
         }
 
@@ -74,13 +60,11 @@ namespace Restaurant.API.Controllers
         /// </summary>
         /// <param name="id"></param>
         /// <returns>Retrieves a collection of the specialty dishes for a specific restaurant location</returns>
-        ///  /// <response code="200">Returns the list of specialty dishes for a selected location</response>
-
+        /// <response code="200">Returns the list of specialty dishes for a selected location</response>
         [HttpGet("{id}/speciality-dishes")]
-        public async Task<ActionResult<IEnumerable<LocationDishResponseDto>>> GetSpecialtyDishes(string id)
+        public async Task<ActionResult<IEnumerable<DishDto>>> GetSpecialtyDishes(string id)
         {
-            var dishes = await _dishService.GetSpecialtyDishesByLocationAsync(id);
-
+            var dishes = await dishService.GetSpecialtyDishesByLocationAsync(id);
             return Ok(dishes);
         }
     }
