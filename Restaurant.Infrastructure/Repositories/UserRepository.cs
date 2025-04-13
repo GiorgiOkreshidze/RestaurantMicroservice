@@ -1,26 +1,35 @@
-// using Amazon.DynamoDBv2.DataModel;
-// using Restaurant.Domain.Entities;
-// using System.Threading.Tasks;
-//
-// namespace Restaurant.Infrastructure.Repositories
-// {
-//     public class UserRepository : IUserRepository
-//     {
-//         private readonly IDynamoDBContext _context;
-//
-//         public UserRepository(IDynamoDBContext context)
-//         {
-//             _context = context;
-//         }
-//
-//         public async Task<User> GetUserByIdAsync(string id)
-//         {
-//             return await _context.LoadAsync<User>(id);
-//         }
-//
-//         public async Task SaveUserAsync(User user)
-//         {
-//             await _context.SaveAsync(user);
-//         }
-//     }
-// }
+using Amazon.DynamoDBv2.DataModel;
+using Restaurant.Domain.Entities;
+using Restaurant.Infrastructure.Interfaces;
+
+namespace Restaurant.Infrastructure.Repositories
+{
+    public class UserRepository(IDynamoDBContext context) : IUserRepository
+    {
+
+        public async Task<User> GetUserByIdAsync(string id)
+        {
+            return await context.LoadAsync<User>(id);
+        }
+
+        public async Task<string> SignupAsync(User user)
+        {
+            user.Id = Guid.NewGuid().ToString();
+
+            await context.SaveAsync(user);
+            return user.Email;
+        }
+
+        public async Task<bool> DoesEmailExistAsync(string email)
+        {
+            var queryResults = await context.QueryAsync<User>(email,
+                new DynamoDBOperationConfig
+                {
+                    IndexName = "GSI1"
+                }).GetRemainingAsync();
+
+            return queryResults.Count > 0;
+        }
+
+    }
+}

@@ -2,6 +2,7 @@
 using Moq;
 using NUnit.Framework;
 using Restaurant.Application.DTOs.Locations;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
@@ -153,10 +154,10 @@ namespace Restaurant.Tests.ServiceTests
                 .ReturnsAsync((Location?)null);
 
             // Act
-            var result = await _locationService.GetLocationByIdAsync(invalidLocationId);
-
-            // Assert
-            Assert.That(result, Is.Null);
+            Assert.ThrowsAsync<NotFoundException>(async () =>
+            {
+                await _locationService.GetLocationByIdAsync(invalidLocationId);
+            });
         }
     }
     

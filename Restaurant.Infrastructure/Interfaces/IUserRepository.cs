@@ -4,7 +4,7 @@ namespace Restaurant.Infrastructure.Interfaces
 {
     public interface IUserRepository
     {
-        Task<User> GetUserByIdAsync(string id);
-        Task SaveUserAsync(User user);
+        Task<string> SignupAsync(User user); // Returns the user ID
+        Task<bool> DoesEmailExistAsync(string email);
     }
 }
