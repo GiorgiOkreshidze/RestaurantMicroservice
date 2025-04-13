@@ -1,5 +1,6 @@
 using AutoMapper;
 using Restaurant.Application.DTOs.Locations;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Infrastructure.Interfaces;
 
@@ -29,7 +30,7 @@ public class LocationService(ILocationRepository locationRepository, IMapper map
         var location = await locationRepository.GetLocationByIdAsync(id);
         if (location == null)
         {
-            return null;
+            throw new NotFoundException("Location", id);
         }
 
         return mapper.Map<LocationDto>(location);
