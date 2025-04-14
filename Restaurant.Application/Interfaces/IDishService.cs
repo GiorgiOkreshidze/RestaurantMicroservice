@@ -7,4 +7,6 @@ public interface IDishService
     Task<IEnumerable<DishDto>> GetSpecialtyDishesByLocationAsync(string locationId);
 
     Task<IEnumerable<DishDto>> GetPopularDishesAsync();
+    
+    Task<DishDetailsDto?> GetDishByIdAsync(string id);
 }

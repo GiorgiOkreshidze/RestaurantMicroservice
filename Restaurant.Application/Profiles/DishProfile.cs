@@ -15,5 +15,6 @@ public class DishProfile : Profile
                     )
             );
         CreateMap<Dish, DishDto>().ReverseMap();
+        CreateMap<Dish, DishDetailsDto>().ReverseMap();
     }
 }

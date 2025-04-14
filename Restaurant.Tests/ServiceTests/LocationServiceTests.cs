@@ -144,7 +144,7 @@ namespace Restaurant.Tests.ServiceTests
         }
         
         [Test]
-        public async Task GetLocationByIdAsync_InvalidId_ReturnsNull()
+        public async Task GetLocationByIdAsync_InvalidId_ReturnsNotFoundException()
         {
             // Arrange
             var invalidLocationId = "invalid-id";
@@ -153,13 +153,11 @@ namespace Restaurant.Tests.ServiceTests
                 .Setup(repo => repo.GetLocationByIdAsync(invalidLocationId))
                 .ReturnsAsync((Location?)null);
 
-            // Act
-            Assert.ThrowsAsync<NotFoundException>(async () =>
-            {
-                await _locationService.GetLocationByIdAsync(invalidLocationId);
-            });
+            // Act & Assert
+            var ex = Assert.ThrowsAsync<NotFoundException>(async () =>
+                await _locationService.GetLocationByIdAsync(invalidLocationId));
+
+            Assert.That(ex.Message, Is.EqualTo($"The Location with the key '{invalidLocationId}' was not found."));
         }
     }
-    
-    
 }

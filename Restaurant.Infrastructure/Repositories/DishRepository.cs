@@ -31,4 +31,10 @@ public class DishRepository(IDynamoDBContext context) : IDishRepository
         
         return dishes;
     }
+
+    public async Task<Dish?> GetDishByIdAsync(string id)
+    {
+        var dish = await context.LoadAsync<Dish>(id);
+        return dish ?? null;    
+    }
 }
