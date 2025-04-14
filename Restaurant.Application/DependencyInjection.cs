@@ -1,7 +1,8 @@
-using AutoMapper;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
+using Restaurant.Domain.Entities;
 
 namespace Restaurant.Application
 {
@@ -9,8 +10,10 @@ namespace Restaurant.Application
     {
         public static IServiceCollection AddApplicationServices(this IServiceCollection services)
         {
-            //services.AddScoped<IAuthService, AuthService>();
+            services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ILocationService, LocationService>();
+            services.AddScoped<IDishService, DishService>();
+            services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
             return services;
         }
     }

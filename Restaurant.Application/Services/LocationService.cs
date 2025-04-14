@@ -1,27 +1,34 @@
 using AutoMapper;
-using Restaurant.Application.DTOs;
+using Restaurant.Application.DTOs.Locations;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
-namespace Restaurant.Application.Services
+namespace Restaurant.Application.Services;
+
+public class LocationService(ILocationRepository locationRepository, IMapper mapper) : ILocationService
 {
-    public class LocationService : ILocationService
+    public async Task<IEnumerable<LocationDto>> GetAllLocationsAsync()
     {
-        private readonly ILocationRepository _locationRepository;
-        private readonly IMapper _mapper;
+        var locations = await locationRepository.GetAllLocationsAsync();
+        return mapper.Map<IEnumerable<LocationDto>>(locations);
+    }
 
-        public LocationService(ILocationRepository locationRepository, IMapper mapper)
+    public async Task<IEnumerable<LocationSelectOptionDto>> GetAllLocationsForDropDownAsync()
+    {
+        var locations = await locationRepository.GetAllLocationsAsync();
+        return mapper.Map<IEnumerable<LocationSelectOptionDto>>(locations);
+    }
+    
+    public async Task<LocationDto?> GetLocationByIdAsync(string id)
+    {
+        var location = await locationRepository.GetLocationByIdAsync(id);
+        if (location == null)
         {
-            _locationRepository = locationRepository;
-            _mapper = mapper;
+            throw new NotFoundException("Location", id);
         }
 
-        public async Task<IEnumerable<LocationDto>> GetAllLocationsAsync()
-        {
-            var locations = await _locationRepository.GetAllLocationsAsync();
-            return _mapper.Map<IEnumerable<LocationDto>>(locations);
-        }
+        return mapper.Map<LocationDto>(location);
     }
 }
