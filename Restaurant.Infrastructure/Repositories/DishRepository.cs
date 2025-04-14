@@ -1,7 +1,10 @@
-﻿using Amazon.DynamoDBv2;
+﻿using System.ComponentModel;
+using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
@@ -36,5 +39,59 @@ public class DishRepository(IDynamoDBContext context) : IDishRepository
     {
         var dish = await context.LoadAsync<Dish>(id);
         return dish ?? null;    
+    }
+
+    public async Task<IEnumerable<Dish>> GetAllDishesAsync(DishFilterDto filter)
+    {
+        var dishes = await context.ScanAsync<Dish>(new List<ScanCondition>(), new DynamoDBOperationConfig
+        {
+            Conversion = DynamoDBEntryConversion.V2
+        }).GetRemainingAsync();
+
+        if (filter.DishType is not null)
+        {
+            dishes = FilterDishByType(dishes, filter.DishType);
+        }
+        
+        dishes = ApplySorting(dishes, filter.SortBy, filter.SortDirection).ToList();
+
+        return dishes;
+    }
+    
+    private IEnumerable<Dish> ApplySorting(IEnumerable<Dish> dishes, DishSortBy? sortBy, SortDirection? sortDirection)
+    {
+        bool descending = sortDirection == SortDirection.Desc;
+
+        return sortBy switch
+        {
+            DishSortBy.Price => descending
+                ? dishes.OrderByDescending(d => ParsePrice(d.Price))
+                : dishes.OrderBy(d => ParsePrice(d.Price)),
+
+            DishSortBy.IsPopular => descending
+                ? dishes.OrderByDescending(d => d.IsPopular)
+                : dishes.OrderBy(d => d.IsPopular),
+
+            _ => dishes // No sorting
+        };
+    }
+
+    private decimal ParsePrice(string price)
+    {
+        return decimal.TryParse(price, out var parsedPrice) ? parsedPrice : 0;
+    }
+    
+    private List<Dish> FilterDishByType(List<Dish> dishes, DishType? dishTypeEnum)
+    {
+        return dishTypeEnum switch
+        {
+            DishType.Appetizers => dishes
+                .Where(dish => dish.DishType == nameof(DishType.Appetizers)).ToList(),
+            DishType.Desserts => dishes
+                .Where(dish => dish.DishType == nameof(DishType.Desserts)).ToList(),
+            DishType.MainCourses => dishes
+                .Where(dish => dish.DishType == nameof(DishType.MainCourses)).ToList(),
+            _ => dishes
+        };
     }
 }

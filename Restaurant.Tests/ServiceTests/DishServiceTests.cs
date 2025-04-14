@@ -6,7 +6,9 @@ using Restaurant.Application.DTOs.Locations;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
+using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Tests.ServiceTests;
@@ -230,5 +232,25 @@ public class DishServiceTests
             await _dishService.GetDishByIdAsync(invalidDishId));
 
         Assert.That(ex.Message, Is.EqualTo($"The Dish with the key '{invalidDishId}' was not found."));
+    }
+    
+    [Test]
+    public async Task GetAllLocationsAsync_ReturnsListOfLocationDto()
+    {
+        // Arrange 
+        var dishesFilterDto = new DishFilterDto
+        {
+            DishType = DishType.Appetizers,
+            SortBy = null,
+            SortDirection = null
+        };
+        
+        _dishRepositoryMock.Setup(repo => repo.GetAllDishesAsync(dishesFilterDto)).ReturnsAsync(_dishes);
+
+        // Act
+        var result = await _dishService.GetAllDishesAsync(dishesFilterDto);
+
+        // Assert
+        Assert.That(result.ToList(), Has.Count.EqualTo(2));
     }
 }
