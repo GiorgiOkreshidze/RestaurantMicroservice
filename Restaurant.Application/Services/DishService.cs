@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Restaurant.Application.DTOs.Dishes;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Infrastructure.Interfaces;
 
@@ -18,6 +19,18 @@ namespace Restaurant.Application.Services
         {
             var dishes = await dishRepository.GetPopularDishesAsync();
             return mapper.Map<IEnumerable<DishDto>>(dishes);
+        }
+
+        public async Task<DishDetailsDto?> GetDishByIdAsync(string id)
+        {
+            var dish = await dishRepository.GetDishByIdAsync(id);
+            
+            if (dish == null)
+            {
+                throw new NotFoundException("Dish", id);
+            }
+
+            return mapper.Map<DishDetailsDto>(dish);
         }
     }
 }
