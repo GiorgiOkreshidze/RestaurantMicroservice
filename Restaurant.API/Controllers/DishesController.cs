@@ -14,7 +14,7 @@ public class DishesController(IDishService dishService) : ControllerBase
     /// <summary>
     /// Gets popular dishes.
     /// </summary>
-    /// <returns>Retrieves dishes where 'isPopular' is set to true/returns>
+    /// <returns>Retrieves dishes where 'isPopular' is set to true</returns>
     /// <response code="200">Returns a list of dishes where 'isPopular' is set to true</response>
     [HttpGet("popular")]
     public async Task<IActionResult> GetPopularDishes()
