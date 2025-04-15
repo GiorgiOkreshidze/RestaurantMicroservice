@@ -128,3 +128,28 @@ env:
         secretKeyRef:
           name: run7team2-aws-secret
           key: aws-session-token
+    - name: JWT_KEY
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-jwt-secret
+          key: jwt-key
+    - name: JWT_ISSUER
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-jwt-secret
+          key: jwt-issuer
+    - name: JWT_AUDIENCE
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-jwt-secret
+          key: jwt-audience
+    - name: JWT_ACCESS_TOKEN_EXPIRY
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-jwt-secret
+          key: jwt-access-token-expiry
+    - name: JWT_REFRESH_TOKEN_EXPIRY_DAYS
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-jwt-secret
+          key: jwt-refresh-token-expiry-days

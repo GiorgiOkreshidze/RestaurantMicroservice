@@ -2,6 +2,7 @@
 using Restaurant.Application.DTOs.Dishes;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain.DTOs;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Application.Services
@@ -31,6 +32,12 @@ namespace Restaurant.Application.Services
             }
 
             return mapper.Map<DishDetailsDto>(dish);
+        }
+
+        public async Task<IEnumerable<DishDto>> GetAllDishesAsync(DishFilterDto filter)
+        {
+            var dishes = await dishRepository.GetAllDishesAsync(filter);
+            return dishes.Select(d => mapper.Map<DishDto>(d));
         }
     }
 }
