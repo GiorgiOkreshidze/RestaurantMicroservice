@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IDishRepository, DishRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
         return services;
     }
 }

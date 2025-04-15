@@ -3,6 +3,7 @@ using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Locations;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.DTOs.Dishes;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Restaurant.API.Controllers
 {
