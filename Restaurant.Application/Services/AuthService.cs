@@ -8,6 +8,7 @@ using FluentValidation;
 using Restaurant.Domain.Entities.Enums;
 using System.Text;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 
 namespace Restaurant.Application.Services
 {
@@ -17,7 +18,8 @@ namespace Restaurant.Application.Services
             IPasswordHasher<User> passwordHasher,
             IValidator<RegisterDto> registerValidator,
             IValidator<LoginDto> loginValidator,
-            ITokenService tokenService) : IAuthService
+            ITokenService tokenService,
+            ILogger<AuthService> _logger) : IAuthService
     {
         private const string DefaultUserImageUrl = "https://team2-demo-bucket.s3.eu-west-2.amazonaws.com/Images/Users/default_user.jpg";
 
@@ -72,9 +74,11 @@ namespace Restaurant.Application.Services
             {
                 throw new UnauthorizedException("Refresh token has been revoked.");
             }
+            var expirationDate = DateTime.Parse(existingToken.ExpiresAt);
 
             if (DateTime.Parse(existingToken.ExpiresAt) < DateTime.UtcNow)
             {
+                Console.WriteLine($"Refresh token expired. Expiration Date: {expirationDate}, Current UTC Time: {DateTime.UtcNow}");
                 throw new UnauthorizedException("Refresh token has expired.");
             }
 
@@ -89,6 +93,27 @@ namespace Restaurant.Application.Services
 
             // Generate new tokens
             return await GenerateTokensAsync(user);
+        }
+
+        public async Task SignOutAsync(string refreshToken)
+        {
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                throw new BadRequestException("Refresh token is required.");
+            }
+
+            var hashedToken = HashToken(refreshToken);
+            var existingToken = await tokenService.GetRefreshTokenAsync(hashedToken);
+
+            if (existingToken != null)
+            {
+                await tokenService.RevokeRefreshTokenAsync(hashedToken);
+                _logger.LogInformation("User refresh token successfully revoked");
+            }
+            else
+            {
+                _logger.LogInformation("SignOut called with non-existent refresh token");
+            }
         }
 
         private async Task<User> CreateUserAsync(RegisterDto request)

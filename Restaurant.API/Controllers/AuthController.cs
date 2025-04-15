@@ -63,5 +63,25 @@ namespace Restaurant.API.Controllers
             var response = await authService.RefreshTokenAsync(request.RefreshToken);
             return Ok(response);
         }
+
+        /// <summary>
+        /// Signs out a user by revoking their refresh token.
+        /// </summary>
+        /// <param name="request">The refresh token to be revoked.</param>
+        /// <returns>A success message indicating the user has been signed out.</returns>
+        /// <response code="200">User was signed out successfully.</response>
+        /// <response code="400">refresh token is missing.</response>
+        /// <response code="401">Invalid Access token.</response>
+        [HttpPost("signout")]
+        [Authorize]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponseDto), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [Produces("application/json")]
+        public async Task<IActionResult> SignOut([FromBody] RefreshTokenRequest request)
+        {
+            await authService.SignOutAsync(request.RefreshToken);
+            return Ok(new { Message = "User signed out successfully." });
+        }
     }
- }
+}

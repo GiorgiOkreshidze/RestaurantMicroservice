@@ -15,7 +15,7 @@ namespace Restaurant.Tests.ServiceTests
         private Mock<ILocationRepository> _locationRepositoryMock = null!;
         private ILocationService _locationService = null!;
         private IMapper _mapper = null!;
-        private List<Location> _locations;
+        private List<Location> _locations = null!;
 
         [SetUp]
         public void SetUp()
@@ -144,7 +144,7 @@ namespace Restaurant.Tests.ServiceTests
         }
         
         [Test]
-        public async Task GetLocationByIdAsync_InvalidId_ReturnsNull()
+        public void GetLocationByIdAsync_InvalidId_ReturnsNull()
         {
             // Arrange
             var invalidLocationId = "invalid-id";
@@ -157,7 +157,7 @@ namespace Restaurant.Tests.ServiceTests
             var ex = Assert.ThrowsAsync<NotFoundException>(async () =>
                 await _locationService.GetLocationByIdAsync(invalidLocationId));
 
-            Assert.That(ex.Message, Is.EqualTo($"The Location with the key '{invalidLocationId}' was not found."));
+            Assert.That(ex?.Message, Is.EqualTo($"The Location with the key '{invalidLocationId}' was not found."));
         }
     }
 }
