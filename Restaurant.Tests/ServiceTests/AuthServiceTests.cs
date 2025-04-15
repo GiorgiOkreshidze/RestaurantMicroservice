@@ -10,6 +10,7 @@ using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Restaurant.Tests
 {
@@ -22,6 +23,7 @@ namespace Restaurant.Tests
         private Mock<IValidator<RegisterDto>> _validatorMock = null!;
         private Mock<IValidator<LoginDto>> _validatorLoginMock = null!;
         private Mock<ITokenService> _tokenServiceMock = null!;
+        private Mock<ILogger<AuthService>> _loggerMock = null!;
         private AuthService _authService = null!;
 
         [SetUp]
@@ -33,6 +35,7 @@ namespace Restaurant.Tests
             _validatorMock = new Mock<IValidator<RegisterDto>>();
             _validatorLoginMock = new Mock<IValidator<LoginDto>>();
             _tokenServiceMock = new Mock<ITokenService>();
+            _loggerMock = new Mock<ILogger<AuthService>>();
 
             _authService = new AuthService(
                 _userRepositoryMock.Object,
@@ -40,7 +43,8 @@ namespace Restaurant.Tests
                 _passwordHasherMock.Object,
                 _validatorMock.Object,
                 _validatorLoginMock.Object,
-                _tokenServiceMock.Object
+                _tokenServiceMock.Object,
+                _loggerMock.Object
             );
         }
 
@@ -503,6 +507,148 @@ namespace Restaurant.Tests
             _userRepositoryMock.Verify(r => r.GetUserByIdAsync(storedRefreshToken.UserId), Times.Once);
             _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(It.IsAny<string>()), Times.Never);
         }
+        #endregion
+
+        #region SignOutTests
+         [Test]
+        public async Task SignOutAsync_WithValidRefreshToken_RevokesToken()
+        {
+            // Arrange
+            var refreshToken = "valid_refresh_token";
+            var hashedToken = HashToken(refreshToken);
+            var storedRefreshToken = new RefreshToken
+            {
+                Id = "token123",
+                UserId = "user123",
+                Token = hashedToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(5).ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                IsRevoked = false,
+                CreatedAt = DateTime.UtcNow.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+            };
+
+            _tokenServiceMock.Setup(t => t.GetRefreshTokenAsync(hashedToken))
+                .ReturnsAsync(storedRefreshToken);
+
+            _tokenServiceMock.Setup(t => t.RevokeRefreshTokenAsync(hashedToken))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            await _authService.SignOutAsync(refreshToken);
+
+            // Assert
+            _tokenServiceMock.Verify(t => t.GetRefreshTokenAsync(hashedToken), Times.Once);
+            _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(hashedToken), Times.Once);
+            VerifyLogInformation("User refresh token successfully revoked");
+        }
+
+        [Test]
+        public void SignOutAsync_WithEmptyRefreshToken_ThrowsBadRequestException()
+        {
+            // Arrange
+            string emptyToken = string.Empty;
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<BadRequestException>(async () =>
+                await _authService.SignOutAsync(emptyToken));
+
+            Assert.That(exception!.Message, Is.EqualTo("Refresh token is required."));
+            _tokenServiceMock.Verify(t => t.GetRefreshTokenAsync(It.IsAny<string>()), Times.Never);
+            _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
+        public async Task SignOutAsync_WithNonExistentRefreshToken_LogsAndDoesNotThrow()
+        {
+            // Arrange
+            var refreshToken = "non_existent_refresh_token";
+            var hashedToken = HashToken(refreshToken);
+
+            _tokenServiceMock.Setup(t => t.GetRefreshTokenAsync(hashedToken))
+                .ReturnsAsync((RefreshToken?)null);
+
+            // Act - This should not throw
+            await _authService.SignOutAsync(refreshToken);
+
+            // Assert
+            _tokenServiceMock.Verify(t => t.GetRefreshTokenAsync(hashedToken), Times.Once);
+            _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(It.IsAny<string>()), Times.Never);
+            VerifyLogInformation("SignOut called with non-existent refresh token");
+        }
+
+        [Test]
+        public async Task SignOutAsync_WithAlreadyRevokedToken_StillCallsRevokeMethod()
+        {
+            // Arrange
+            var refreshToken = "already_revoked_token";
+            var hashedToken = HashToken(refreshToken);
+            var storedRefreshToken = new RefreshToken
+            {
+                Id = "token123",
+                UserId = "user123",
+                Token = hashedToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(5).ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                IsRevoked = true, // Already revoked
+                CreatedAt = DateTime.UtcNow.AddDays(-2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+            };
+
+            _tokenServiceMock.Setup(t => t.GetRefreshTokenAsync(hashedToken))
+                .ReturnsAsync(storedRefreshToken);
+
+            _tokenServiceMock.Setup(t => t.RevokeRefreshTokenAsync(hashedToken))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            await _authService.SignOutAsync(refreshToken);
+
+            // Assert
+            _tokenServiceMock.Verify(t => t.GetRefreshTokenAsync(hashedToken), Times.Once);
+            _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(hashedToken), Times.Once);
+            VerifyLogInformation("User refresh token successfully revoked");
+        }
+
+        [Test]
+        public async Task SignOutAsync_WithExpiredToken_StillRevokesToken()
+        {
+            // Arrange
+            var refreshToken = "expired_token";
+            var hashedToken = HashToken(refreshToken);
+            var storedRefreshToken = new RefreshToken
+            {
+                Id = "token123",
+                UserId = "user123",
+                Token = hashedToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-ddTHH:mm:ssZ"), // Expired
+                IsRevoked = false,
+                CreatedAt = DateTime.UtcNow.AddDays(-8).ToString("yyyy-MM-ddTHH:mm:ssZ")
+            };
+
+            _tokenServiceMock.Setup(t => t.GetRefreshTokenAsync(hashedToken))
+                .ReturnsAsync(storedRefreshToken);
+
+            _tokenServiceMock.Setup(t => t.RevokeRefreshTokenAsync(hashedToken))
+                .Returns(Task.CompletedTask);
+
+            // Act
+            await _authService.SignOutAsync(refreshToken);
+
+            // Assert
+            _tokenServiceMock.Verify(t => t.GetRefreshTokenAsync(hashedToken), Times.Once);
+            _tokenServiceMock.Verify(t => t.RevokeRefreshTokenAsync(hashedToken), Times.Once);
+            VerifyLogInformation("User refresh token successfully revoked");
+        }
+
+        private void VerifyLogInformation(string expectedMessage)
+        {
+            _loggerMock.Verify(
+                x => x.Log(
+                    LogLevel.Information,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains(expectedMessage)),
+                    It.IsAny<Exception>(),
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+                Times.Once);
+        }
+        #endregion
 
         private static string HashToken(string token)
         {
@@ -510,6 +656,6 @@ namespace Restaurant.Tests
             var hash = System.Security.Cryptography.SHA256.HashData(bytes);
             return Convert.ToBase64String(hash);
         }
-        #endregion
+        
     }
 }

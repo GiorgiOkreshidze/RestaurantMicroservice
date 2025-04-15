@@ -13,6 +13,17 @@ namespace Restaurant.API.Middleware
             try
             {
                 await next(context);
+
+                if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
+                {
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new ErrorResponse
+                    {
+                        Title = "Invalid or expired access token",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Type = "Unauthorized",
+                    });
+                }
             }
             catch (Exception ex)
             {
