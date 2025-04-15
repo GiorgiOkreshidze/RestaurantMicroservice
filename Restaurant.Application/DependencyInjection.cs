@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Restaurant.Application.Interfaces;
@@ -14,6 +15,7 @@ namespace Restaurant.Application
             services.AddScoped<ILocationService, LocationService>();
             services.AddScoped<IDishService, DishService>();
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+            services.AddScoped<ITokenService, TokenService>();
             return services;
         }
     }

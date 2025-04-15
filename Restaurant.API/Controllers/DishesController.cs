@@ -2,6 +2,7 @@
 using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Dishes;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain.DTOs;
 
 namespace Restaurant.API.Controllers;
 
@@ -37,5 +38,20 @@ public class DishesController(IDishService dishService) : ControllerBase
     {
         var dish = await dishService.GetDishByIdAsync(id);
         return Ok(dish);
+    }
+    
+    /// <summary>
+    /// Retrieves all dishes based on the provided filter criteria.
+    /// </summary>
+    /// <param name="filter">The filter criteria for retrieving dishes.</param>
+    /// <returns>A list of dishes matching the filter criteria.</returns>
+    /// <response code="200">Returns a list of dishes matching the filter criteria.</response>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<DishDto>), StatusCodes.Status200OK)]
+    [Produces("application/json")]
+    public async Task<IActionResult> GetAllDishes([FromQuery] DishFilterDto filter)
+    {
+        var dishes = await dishService.GetAllDishesAsync(filter);
+        return Ok(dishes);
     }
 }

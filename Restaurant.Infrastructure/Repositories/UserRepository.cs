@@ -7,9 +7,20 @@ namespace Restaurant.Infrastructure.Repositories
     public class UserRepository(IDynamoDBContext context) : IUserRepository
     {
 
-        public async Task<User> GetUserByIdAsync(string id)
+        public async Task<User?> GetUserByIdAsync(string id)
         {
             return await context.LoadAsync<User>(id);
+        }
+
+        public async Task<User?> GetUserByEmailAsync(string email)
+        {
+            var users = await context.QueryAsync<User>(email,
+                new DynamoDBOperationConfig
+                {
+                    IndexName = "GSI1"
+                }).GetRemainingAsync();
+
+            return users.FirstOrDefault();
         }
 
         public async Task<string> SignupAsync(User user)
