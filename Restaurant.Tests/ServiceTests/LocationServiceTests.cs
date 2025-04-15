@@ -144,7 +144,7 @@ namespace Restaurant.Tests.ServiceTests
         }
         
         [Test]
-        public async Task GetLocationByIdAsync_InvalidId_ReturnsNotFoundException()
+        public async Task GetLocationByIdAsync_InvalidId_ReturnsNull()
         {
             // Arrange
             var invalidLocationId = "invalid-id";

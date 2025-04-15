@@ -6,6 +6,8 @@ using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 using FluentValidation;
 using Restaurant.Domain.Entities.Enums;
+using System.Text;
+using System.Security.Cryptography;
 
 namespace Restaurant.Application.Services
 {
@@ -13,7 +15,9 @@ namespace Restaurant.Application.Services
             IUserRepository userRepository,
             IEmployeeRepository employeeInfoRepository,
             IPasswordHasher<User> passwordHasher,
-            IValidator<RegisterDto> registerValidator) : IAuthService
+            IValidator<RegisterDto> registerValidator,
+            IValidator<LoginDto> loginValidator,
+            ITokenService tokenService) : IAuthService
     {
         private const string DefaultUserImageUrl = "https://team2-demo-bucket.s3.eu-west-2.amazonaws.com/Images/Users/default_user.jpg";
 
@@ -30,6 +34,61 @@ namespace Restaurant.Application.Services
             var registeredUserEmail = await userRepository.SignupAsync(user);
 
             return $"User with email {registeredUserEmail} registered successfully.";
+        }
+
+        public async Task<TokenResponseDto> LoginAsync(LoginDto request)
+        {
+            await ValidateRequestAsync(request, loginValidator);
+
+            var user = await userRepository.GetUserByEmailAsync(request.Email);
+            if (user == null)
+            {
+                throw new UnauthorizedException("Invalid email or password.");
+            }
+
+            var passwordVerificationResult = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+            if (passwordVerificationResult == PasswordVerificationResult.Failed)
+            {
+                throw new UnauthorizedException("Invalid email or password.");
+            }
+
+            return await GenerateTokensAsync(user);
+        }
+
+        public async Task<TokenResponseDto> RefreshTokenAsync(string refreshToken)
+        {
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                throw new BadRequestException("Refresh token is required.");
+            }
+            var hashedToken = HashToken(refreshToken); // Hash the incoming token
+            var existingToken = await tokenService.GetRefreshTokenAsync(hashedToken);
+            if (existingToken == null)
+            {
+                throw new UnauthorizedException("Invalid refresh token.");
+            }
+
+            if (existingToken.IsRevoked)
+            {
+                throw new UnauthorizedException("Refresh token has been revoked.");
+            }
+
+            if (DateTime.Parse(existingToken.ExpiresAt) < DateTime.UtcNow)
+            {
+                throw new UnauthorizedException("Refresh token has expired.");
+            }
+
+            var user = await userRepository.GetUserByIdAsync(existingToken.UserId);
+            if (user == null)
+            {
+                throw new UnauthorizedException("User not found.");
+            }
+
+            // Revoke the current refresh token
+            await tokenService.RevokeRefreshTokenAsync(hashedToken);
+
+            // Generate new tokens
+            return await GenerateTokensAsync(user);
         }
 
         private async Task<User> CreateUserAsync(RegisterDto request)
@@ -59,6 +118,30 @@ namespace Restaurant.Application.Services
             {
                 throw new BadRequestException("Invalid Request", validationResult);
             }
+        }
+
+        private async Task<TokenResponseDto> GenerateTokensAsync(User user)
+        {
+            var accessToken = tokenService.GenerateAccessToken(user);
+            var (plainToken, refreshTokenEntity) = tokenService.GenerateRefreshToken(user.Id!);
+
+            int expiresInSeconds = tokenService.GetAccessTokenExpiryInSeconds();
+
+            await tokenService.SaveRefreshTokenAsync(refreshTokenEntity);
+
+            return new TokenResponseDto
+            {
+                AccessToken = accessToken,
+                RefreshToken = plainToken, // Return the plain token to the client
+                ExpiresIn = expiresInSeconds
+            };
+        }
+
+        private static string HashToken(string token)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(token);
+            var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+            return Convert.ToBase64String(hash);
         }
     }
 }
