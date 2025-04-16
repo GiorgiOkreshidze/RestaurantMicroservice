@@ -1,10 +1,13 @@
-﻿using Amazon.DynamoDBv2.Model;
+﻿using System.Globalization;
+using Amazon.DynamoDBv2.Model;
 using AutoMapper;
+using FluentValidation;
 using Moq;
 using NUnit.Framework;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
@@ -15,11 +18,12 @@ namespace Restaurant.Tests.ServiceTests;
 public class ReservationServiceTests
 {
     private Mock<IReservationRepository> _reservationRepositoryMock = null!;
-    private Mock<ILocationRepository> _locationRepositoryMock;
-    private Mock<IUserRepository> _userRepositoryMock;
-    private Mock<ITableRepository> _tableRepositoryMock;
-    private Mock<IWaiterRepository> _waiterRepositoryMock;
+    private Mock<ILocationRepository> _locationRepositoryMock = null!;
+    private Mock<IUserRepository> _userRepositoryMock = null!;
+    private Mock<ITableRepository> _tableRepositoryMock = null!;
+    private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
     private IReservationService _reservationService = null!;
+    private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
     private IMapper _mapper = null!;
     
     private ClientReservationRequest _request = null!;
@@ -37,6 +41,8 @@ public class ReservationServiceTests
         _userRepositoryMock = new Mock<IUserRepository>();
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
+        _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
+
 
         var config = new MapperConfiguration(cfg =>
         {
@@ -52,6 +58,7 @@ public class ReservationServiceTests
             _userRepositoryMock.Object,
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
+            _validatorFilterMock.Object,
             _mapper);
         
         _request = new ClientReservationRequest
@@ -76,7 +83,7 @@ public class ReservationServiceTests
         _table = new RestaurantTable
         {
             Id = "table-1",
-            Capacity = "4",
+            Capacity = 4,
             TableNumber = "1",
             LocationId = "loc-1",
             LocationAddress = "Main Street 123",
@@ -114,6 +121,7 @@ public class ReservationServiceTests
         };
     }
 
+    #region PostReservation
     [Test]
     public async Task UpsertReservationAsync_ValidClientReservation_ReturnsReservationDto()
     {
@@ -166,8 +174,8 @@ public class ReservationServiceTests
     {
         // Arrange
         _request.GuestsNumber = "100"; // Invalid number of guests
+        _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
         _tableRepositoryMock.Setup(r => r.GetTableById(_request.TableId)).ReturnsAsync(_table);
-
         // Act & Assert
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
             _reservationService.UpsertReservationAsync(_request, "user-id"));
@@ -176,7 +184,7 @@ public class ReservationServiceTests
     }
 
     [Test]
-    public async Task UpsertReservationAsync_ConflictingReservationDifferentUser_ThrowsArgumentException()
+    public void UpsertReservationAsync_ConflictingReservationDifferentUser_ThrowsArgumentException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -210,7 +218,7 @@ public class ReservationServiceTests
     }
 
     [Test]
-    public async Task UpsertReservationAsync_ConflictingReservationSameUser_ThrowsArgumentException()
+    public void UpsertReservationAsync_ConflictingReservationSameUser_ThrowsArgumentException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -244,7 +252,7 @@ public class ReservationServiceTests
     }
 
     [Test]
-    public async Task UpsertReservationAsync_NoWaitersAvailable_ThrowsResourceNotFoundException()
+    public void UpsertReservationAsync_NoWaitersAvailable_ThrowsResourceNotFoundException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -264,4 +272,216 @@ public class ReservationServiceTests
         Assert.That(ex.Message,
             Is.EqualTo($"No waiters available for location ID: {_request.LocationId} after counting reservations"));
     }
+
+    #endregion
+
+    #region GetAvailableTables
+    [Test]
+    public async Task GetAvailableTablesAsync_ValidParameters_ReturnsAvailableTables()
+    {
+        // Arrange
+        var filterParameters = new FilterParameters
+        {
+            LocationId = "loc-1",
+            Date = "2025-04-16",
+            Guests = 2
+        };
+
+        var validationResult = new FluentValidation.Results.ValidationResult();
+        _validatorFilterMock.Setup(v => v.ValidateAsync(filterParameters, default))
+            .ReturnsAsync(validationResult);
+
+        _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(filterParameters.LocationId))
+            .ReturnsAsync(_location);
+
+        var tables = new List<RestaurantTable> { _table };
+        _tableRepositoryMock.Setup(r => r.GetTablesForLocationAsync(_location.Id, filterParameters.Guests))
+            .ReturnsAsync(tables);
+
+        var reservations = new List<Reservation>();
+        _reservationRepositoryMock.Setup(r => r.GetReservationsForDateAndLocation(filterParameters.Date, _location.Id))
+            .ReturnsAsync(reservations);
+
+        // Act
+        var result = await _reservationService.GetAvailableTablesAsync(filterParameters);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Count(), Is.EqualTo(1));
+        var tableDto = result.First();
+        Assert.That(tableDto.TableId, Is.EqualTo(_table.Id));
+        Assert.That(tableDto.AvailableSlots.Count, Is.GreaterThan(0));
+    }
+
+    [Test]
+    public void GetAvailableTablesAsync_InvalidParameters_ThrowsBadRequestException()
+    {
+        // Arrange
+        var filterParameters = new FilterParameters
+        {
+            LocationId = "loc-1",
+            Date = "invalid-date", // Invalid date format
+            Guests = 2
+        };
+
+        var validationFailures = new List<FluentValidation.Results.ValidationFailure>
+    {
+        new("Date", "Date must be in format yyyy-MM-dd")
+    };
+        var validationResult = new FluentValidation.Results.ValidationResult(validationFailures);
+
+        _validatorFilterMock.Setup(v => v.ValidateAsync(filterParameters, default))
+            .ReturnsAsync(validationResult);
+
+        // Act & Assert
+        var exception = Assert.ThrowsAsync<BadRequestException>(async () =>
+            await _reservationService.GetAvailableTablesAsync(filterParameters));
+
+        Assert.That(exception!.Message, Is.EqualTo("Invalid Request"));
+    }
+
+    [Test]
+    public async Task GetAvailableTablesAsync_WithConflictingReservations_FiltersOutUnavailableSlots()
+    {
+        // Arrange
+        var filterParameters = new FilterParameters
+        {
+            LocationId = "loc-1",
+            Date = "2025-04-16",
+            Guests = 2
+        };
+
+        var validationResult = new FluentValidation.Results.ValidationResult();
+        _validatorFilterMock.Setup(v => v.ValidateAsync(filterParameters, default))
+            .ReturnsAsync(validationResult);
+
+        _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(filterParameters.LocationId))
+            .ReturnsAsync(_location);
+
+        var tables = new List<RestaurantTable> { _table };
+        _tableRepositoryMock.Setup(r => r.GetTablesForLocationAsync(_location.Id, filterParameters.Guests))
+            .ReturnsAsync(tables);
+
+        // Set up a reservation that conflicts with one of the time slots
+        var reservationInfo = new Reservation
+        {
+            Id = "res-1",
+            PreOrder = "not implemented",
+            Status = "Reserved",
+            ClientType = Domain.Entities.Enums.ClientType.CUSTOMER,
+            TableId = _table.Id,
+            Date = filterParameters.Date,
+            TimeFrom = "14:00",
+            TimeTo = "16:00",
+            GuestsNumber = "2",
+            LocationId = _location.Id,
+            LocationAddress = _location.Address,
+            TableCapacity = _table.Capacity.ToString(),
+            TableNumber = _table.TableNumber,
+            TimeSlot = "14:00 - 16:00",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+
+        };
+
+        var reservations = new List<Reservation> { reservationInfo };
+        _reservationRepositoryMock.Setup(r => r.GetReservationsForDateAndLocation(filterParameters.Date, _location.Id))
+            .ReturnsAsync(reservations);
+
+        // Act
+        var result = await _reservationService.GetAvailableTablesAsync(filterParameters);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Count(), Is.EqualTo(1));
+
+        // Verify that slots conflicting with the reservation are filtered out
+        var tableDto = result.First();
+        Assert.That(tableDto.AvailableSlots, Is.Not.Empty);
+        Assert.That(tableDto.AvailableSlots.Any(s =>
+            TimeSpan.ParseExact(s.Start, "hh\\:mm", CultureInfo.InvariantCulture) >=
+            TimeSpan.ParseExact("14:00", "hh\\:mm", CultureInfo.InvariantCulture) &&
+            TimeSpan.ParseExact(s.End, "hh\\:mm", CultureInfo.InvariantCulture) <=
+            TimeSpan.ParseExact("16:00", "hh\\:mm", CultureInfo.InvariantCulture)),
+            Is.False);
+    }
+
+    [Test]
+    public async Task GetAvailableTablesAsync_WithSpecificTimeRequest_ReturnsMatchingSlot()
+    {
+        // Arrange
+        var filterParameters = new FilterParameters
+        {
+            LocationId = "loc-1",
+            Date = "2025-04-16",
+            Guests = 2,
+            Time = "13:00" // Specific time request
+        };
+
+        var validationResult = new FluentValidation.Results.ValidationResult();
+        _validatorFilterMock.Setup(v => v.ValidateAsync(filterParameters, default))
+            .ReturnsAsync(validationResult);
+
+        _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(filterParameters.LocationId))
+            .ReturnsAsync(_location);
+
+        var tables = new List<RestaurantTable> { _table };
+        _tableRepositoryMock.Setup(r => r.GetTablesForLocationAsync(_location.Id, filterParameters.Guests))
+            .ReturnsAsync(tables);
+
+        var reservations = new List<Reservation>();
+        _reservationRepositoryMock.Setup(r => r.GetReservationsForDateAndLocation(filterParameters.Date, _location.Id))
+            .ReturnsAsync(reservations);
+
+        // Act
+        var result = await _reservationService.GetAvailableTablesAsync(filterParameters);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Count(), Is.EqualTo(1));
+
+        var tableDto = result.First();
+        Assert.That(tableDto.AvailableSlots, Is.Not.Empty);
+        Assert.That(tableDto.AvailableSlots.Count, Is.EqualTo(1)); // Only one slot should be returned
+
+        var slot = tableDto.AvailableSlots.First();
+        // Either the slot should start at exactly the requested time,
+        // or the requested time should be within the slot's duration
+        var requestedTime = TimeSpan.ParseExact("13:00", "hh\\:mm", CultureInfo.InvariantCulture);
+        var slotStart = TimeSpan.ParseExact(slot.Start, "hh\\:mm", CultureInfo.InvariantCulture);
+        var slotEnd = TimeSpan.ParseExact(slot.End, "hh\\:mm", CultureInfo.InvariantCulture);
+
+        Assert.That(slotStart <= requestedTime && requestedTime <= slotEnd, Is.True);
+    }
+
+    [Test]
+    public async Task GetAvailableTablesAsync_NoTablesWithSufficientCapacity_ReturnsEmptyCollection()
+    {
+        // Arrange
+        var filterParameters = new FilterParameters
+        {
+            LocationId = "loc-1",
+            Date = "2025-04-16",
+            Guests = 10 // More guests than available capacity
+        };
+
+        var validationResult = new FluentValidation.Results.ValidationResult();
+        _validatorFilterMock.Setup(v => v.ValidateAsync(filterParameters, default))
+            .ReturnsAsync(validationResult);
+
+        _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(filterParameters.LocationId))
+            .ReturnsAsync(_location);
+
+        // No tables with sufficient capacity
+        var tables = new List<RestaurantTable>();
+        _tableRepositoryMock.Setup(r => r.GetTablesForLocationAsync(_location.Id, filterParameters.Guests))
+            .ReturnsAsync(tables);
+
+        // Act
+        var result = await _reservationService.GetAvailableTablesAsync(filterParameters);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Empty);
+    }
+    #endregion
 }

@@ -19,7 +19,7 @@ namespace Restaurant.API.Middleware
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsJsonAsync(new ErrorResponse
                     {
-                        Title = "Invalid or expired access token",
+                        Title = "Invalid Request",
                         Status = StatusCodes.Status401Unauthorized,
                         Type = "Unauthorized",
                     });

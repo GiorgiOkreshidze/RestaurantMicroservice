@@ -1,7 +1,9 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Reservations;
+using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.Interfaces;
 
 namespace Restaurant.API.Controllers;
@@ -10,7 +12,23 @@ namespace Restaurant.API.Controllers;
 [Route("api/reservations")]
 public class ReservationController(IReservationService reservationService) : ControllerBase
 {
-    
+    /// <summary>
+    /// Gets available tables for a specific date, time, and number of guests.
+    /// </summary>
+    /// <param name="query">Query parameters for available tables</param>
+    /// <returns>List of available tables with time slots</returns>
+    /// <response code="200">Available tables retrieved successfully</response>
+    /// <response code="400">If parameters are invalid</response>
+    [HttpGet("tables")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IEnumerable<AvailableTableDto>>> GetAvailableTables(
+        [FromQuery] FilterParameters query)
+    {
+        var result = await reservationService.GetAvailableTablesAsync(query);
+        return Ok(result);
+    }
+
     /// <summary>
     /// Creates or updates a client reservation.
     /// </summary>

@@ -6,8 +6,6 @@ using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 using FluentValidation;
 using Restaurant.Domain.Entities.Enums;
-using System.Text;
-using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
 namespace Restaurant.Application.Services

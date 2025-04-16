@@ -46,7 +46,7 @@ public class AutoRefreshingRoleCredentials : AWSCredentials
             Console.WriteLine("Using existing credentials that expire at: " + _expirationTime);
         }
     
-        Console.WriteLine($"Returning credentials with AccessKeyId: {_currentCredentials.AccessKeyId.Substring(0, 5)}...");
+        Console.WriteLine($"Returning credentials with AccessKeyId: {_currentCredentials!.AccessKeyId.Substring(0, 5)}...");
     
         return new ImmutableCredentials(
             _currentCredentials.AccessKeyId,

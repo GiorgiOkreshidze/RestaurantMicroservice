@@ -12,7 +12,7 @@ public class RestaurantTable
     public required string TableNumber { get; set; }
 
     [DynamoDBProperty("capacity")]
-    public required string Capacity { get; set; }
+    public required int Capacity { get; set; }
 
     [DynamoDBProperty("locationId")]
     public required string LocationId { get; set; }

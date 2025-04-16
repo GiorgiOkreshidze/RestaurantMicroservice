@@ -1,11 +1,16 @@
-﻿using System.Globalization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Amazon.DynamoDBv2.Model;
+using Amazon.Runtime.Internal;
 using AutoMapper;
+using FluentValidation;
+using Restaurant.Application.DTOs.Auth;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
@@ -13,17 +18,35 @@ using Restaurant.Infrastructure.Interfaces;
 namespace Restaurant.Application.Services;
 
 public class ReservationService(
-    IReservationRepository reservationRepository, 
-    ILocationRepository locationRepository, 
+    IReservationRepository reservationRepository,
+    ILocationRepository locationRepository,
     IUserRepository userRepository,
     ITableRepository tableRepository,
     IWaiterRepository waiterRepository,
+    IValidator<FilterParameters> filterValidator,
     IMapper mapper) : IReservationService
 {
+    public async Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters)
+    {
+        var validationResult = await filterValidator.ValidateAsync(filterParameters);
+        if (!validationResult.IsValid)
+        {
+            throw new BadRequestException("Invalid Request", validationResult);
+        }
+
+        var location = await locationRepository.GetLocationByIdAsync(filterParameters.LocationId) ?? throw new NotFoundException("Location", filterParameters.LocationId);
+        var tables = await tableRepository.GetTablesForLocationAsync(location.Id, filterParameters.Guests);
+        var reservations = await reservationRepository.GetReservationsForDateAndLocation(filterParameters.Date, location.Id);
+        var result = CalculateAvailableSlots(tables, reservations, filterParameters.Time);
+        var tablesWithSlots = result.Where(t => t.AvailableSlots.Count != 0).ToList();
+
+        return tablesWithSlots;
+    }
+
     public async Task<ReservationDto> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
     {
         ValidateTimeSlot(reservationRequest);
-        var location = await locationRepository.GetLocationByIdAsync(reservationRequest.LocationId);
+        var location = await locationRepository.GetLocationByIdAsync(reservationRequest.LocationId) ?? throw new NotFoundException("Location", reservationRequest.LocationId);
         var table = await GetAndValidateTable(reservationRequest.TableId, reservationRequest.GuestsNumber);
 
         var reservationDto = new Reservation
@@ -50,7 +73,8 @@ public class ReservationService(
             _ => throw new ArgumentOutOfRangeException(nameof(reservationRequest), reservationRequest, null)
         };
     }
-    
+
+    #region Helper Methods For Reservation
     private async Task<ReservationDto> ProcessClientReservation(ClientReservationRequest request, Reservation reservation, string userId)
     {
         var user = await ValidateUser(userId);
@@ -67,15 +91,15 @@ public class ReservationService(
         {
             await ValidateModificationPermissionsForClient(reservation, user);
         }
-        
+
         await reservationRepository.UpsertReservationAsync(reservation);
-        
+
         return mapper.Map<ReservationDto>(reservation);
     }
-    
+
     private async Task ValidateModificationPermissionsForClient(Reservation newReservation, UserDto user)
     {
-        var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id);
+        var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id) ?? throw new NotFoundException("Reservation", newReservation.Id);
 
         if (user.Email != existingReservation.UserEmail)
         {
@@ -84,8 +108,7 @@ public class ReservationService(
         newReservation.WaiterId = existingReservation.WaiterId;
         ValidateReservationTimeLock(mapper.Map<ReservationDto>(existingReservation));
     }
-    
-    
+
     private void ValidateReservationTimeLock(ReservationDto reservation)
     {
         var reservationDateTime = DateTime.ParseExact(
@@ -99,7 +122,7 @@ public class ReservationService(
             throw new ArgumentException("Reservations cannot be modified within 30 minutes of start time");
         }
     }
-    
+
     private async Task<UserDto> ValidateUser(string userId)
     {
         var user = await userRepository.GetUserByIdAsync(userId);
@@ -107,82 +130,84 @@ public class ReservationService(
         {
             throw new UnauthorizedException("User is not registered");
         }
-        
+
         return mapper.Map<UserDto>(user);
     }
-    
+
     private void ValidateTimeSlot(BaseReservationRequest request)
     {
         var predefinedSlots = Utils.GeneratePredefinedTimeSlots();
         var newTimeFrom = TimeSpan.Parse(request.TimeFrom);
         var newTimeTo = TimeSpan.Parse(request.TimeTo);
-    
+
         var firstSlot = TimeSpan.Parse(predefinedSlots.First().Start);
         var lastSlot = TimeSpan.Parse(predefinedSlots.Last().End);
-    
+
         if (newTimeFrom < firstSlot || newTimeTo > lastSlot)
         {
             throw new ArgumentException("Reservation must be within restaurant working hours.");
         }
-    
+
         bool isValidSlot = predefinedSlots.Any(slot =>
             TimeSpan.Parse(slot.Start) == newTimeFrom &&
             TimeSpan.Parse(slot.End) == newTimeTo);
-    
+
         if (!isValidSlot)
         {
             throw new ArgumentException("Reservation must exactly match one of the predefined time slots.");
         }
     }
-    
+
     private async Task<RestaurantTableDto> GetAndValidateTable(string tableId, string guestsNumber)
     {
         var table = await tableRepository.GetTableById(tableId);
+
         if (table is null)
         {
             throw new ResourceNotFoundException($"Table with ID {tableId} not found.");
         }
-    
-        if (!int.TryParse(table.Capacity, out int capacity) ||
-            !int.TryParse(guestsNumber, out int guests))
+
+        if (!int.TryParse(guestsNumber, out int guests))
         {
-            throw new ArgumentException("Invalid number format for Capacity or GuestsNumber.");
+            throw new ArgumentException("Invalid number format for GuestsNumber.");
         }
-    
+
+        int capacity = table.Capacity;
+
         if (capacity < guests)
         {
             throw new ArgumentException(
                 $"Table with ID {tableId} cannot accommodate {guestsNumber} guests. " +
                 $"Maximum capacity: {table.Capacity}.");
         }
-    
+
         return mapper.Map<RestaurantTableDto>(table);
     }
-    
+
     private void HandleClientReservation(Reservation reservation, UserDto user)
     {
         reservation.UserEmail = user.Email;
         reservation.UserInfo = user.GetFullName();
         reservation.ClientType = ClientType.CUSTOMER;
     }
-    
+
     private async Task<string> GetLeastBusyWaiter(string locationId, string date)
     {
-        var waiters = await waiterRepository.GetWaitersByLocationAsync(locationId);
-        
+        var waiters = await waiterRepository.GetWaitersByLocationAsync(locationId) ?? throw new NotFoundException("Waiters for location", locationId);
+
         var reservationCounts = new Dictionary<string, int>();
 
         foreach (var waiter in waiters)
         {
-            var count = await reservationRepository.GetWaiterReservationCountAsync(waiter.Id, date);
-            reservationCounts[waiter.Id] = count;
+            var count = await reservationRepository.GetWaiterReservationCountAsync(waiter.Id!, date);
+            reservationCounts[waiter.Id!] = count;
         }
 
         return reservationCounts
             .OrderBy(x => x.Value)
             .FirstOrDefault().Key ?? throw new ResourceNotFoundException($"No waiters available for location ID: {locationId} after counting reservations");
     }
-    
+
     private async Task CheckForConflictingReservations(
         BaseReservationRequest request,
         string locationAddress,
@@ -216,4 +241,109 @@ public class ReservationService(
             }
         }
     }
+    #endregion
+
+    #region Helper Methods For Available Tables
+    private IEnumerable<AvailableTableDto> CalculateAvailableSlots(
+    IEnumerable<RestaurantTable> tables,
+    IEnumerable<Reservation> reservations,
+    string? requestedTime)
+    {
+        var result = new List<AvailableTableDto>();
+
+        foreach (var table in tables)
+        {
+            var allTimeSlots = Utils.GeneratePredefinedTimeSlots();
+            var tableReservations = reservations
+                .Where(r => r.TableId == table.Id)
+                .ToList();
+            var availableSlots = FilterAvailableTimeSlots(allTimeSlots, tableReservations);
+
+            if (!string.IsNullOrEmpty(requestedTime))
+            {
+                availableSlots = FilterSlotsByRequestedTime(availableSlots, requestedTime);
+
+                if (!availableSlots.Any())
+                {
+                    continue;
+                }
+            }
+
+            result.Add(new AvailableTableDto
+            {
+                TableId = table.Id,
+                TableNumber = table.TableNumber,
+                Capacity = table.Capacity.ToString(),
+                LocationId = table.LocationId,
+                LocationAddress = table.LocationAddress,
+                AvailableSlots = availableSlots
+            });
+        }
+
+        return result;
+    }
+
+    private List<TimeSlot> FilterAvailableTimeSlots(List<TimeSlot> allSlots, IEnumerable<Reservation> reservations)
+    {
+        var availableSlots = new List<TimeSlot>();
+
+        foreach (var slot in allSlots)
+        {
+            var slotStartTime = TimeSpan.ParseExact(slot.Start, "hh\\:mm", CultureInfo.InvariantCulture);
+            var slotEndTime = TimeSpan.ParseExact(slot.End, "hh\\:mm", CultureInfo.InvariantCulture);
+
+            var isAvailable = true;
+
+            foreach (var reservation in reservations)
+            {
+                var reservationStart =
+                    TimeSpan.ParseExact(reservation.TimeFrom, "hh\\:mm", CultureInfo.InvariantCulture);
+                var reservationEnd = TimeSpan.ParseExact(reservation.TimeTo, "hh\\:mm", CultureInfo.InvariantCulture);
+
+                if (slotStartTime >= reservationEnd || slotEndTime <= reservationStart) continue;
+                isAvailable = false;
+                break;
+            }
+
+            if (isAvailable)
+            {
+                availableSlots.Add(slot);
+            }
+        }
+
+        return availableSlots;
+    }
+
+    private List<TimeSlot> FilterSlotsByRequestedTime(List<TimeSlot> availableSlots, string requestedTime)
+    {
+        var requestedTimeSpan = TimeSpan.ParseExact(requestedTime, "hh\\:mm", CultureInfo.InvariantCulture);
+
+        foreach (var slot in availableSlots)
+        {
+            var slotTime = TimeSpan.ParseExact(slot.Start, "hh\\:mm", CultureInfo.InvariantCulture);
+            var slotEndTime = TimeSpan.ParseExact(slot.End, "hh\\:mm", CultureInfo.InvariantCulture);
+
+            // If the requested time falls within this slot's duration
+            if (requestedTimeSpan >= slotTime && requestedTimeSpan <= slotEndTime)
+            {
+                // Return only this slot
+                return [slot];
+            }
+        }
+
+        // If no exact match is found, check for the nearest slot within a 15-minute window
+        var nearestSlot = availableSlots
+            .Where(slot =>
+            {
+                var slotTime = TimeSpan.ParseExact(slot.Start, "hh\\:mm", CultureInfo.InvariantCulture);
+                var timeDifference = Math.Abs((slotTime - requestedTimeSpan).TotalMinutes);
+                return timeDifference <= 15; // Check if the slot is within 15 minutes of the requested time
+            }).MinBy(slot =>
+                Math.Abs((TimeSpan.ParseExact(slot.Start, "hh\\:mm", CultureInfo.InvariantCulture) - requestedTimeSpan)
+                    .Ticks));
+
+        // If the nearest slot is found, return it, otherwise return empty list
+        return nearestSlot != null ? [nearestSlot] : [];
+    }
+    #endregion
 }
