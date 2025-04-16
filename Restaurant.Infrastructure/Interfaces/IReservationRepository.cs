@@ -20,4 +20,6 @@ public interface IReservationRepository
     Task<IEnumerable<Reservation>> GetCustomerReservationsAsync(string email);
 
     Task<IEnumerable<Reservation>> GetWaiterReservationsAsync(ReservationsQueryParametersDto queryParams, string waiterId);
+
+    Task<Reservation> CancelReservationAsync(string reservationId);
 }

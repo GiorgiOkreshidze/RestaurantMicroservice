@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
@@ -167,5 +168,18 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
         }).GetRemainingAsync();
 
         return reservations;
+    }
+
+    public async Task<Reservation> CancelReservationAsync(string reservationId)
+    {
+        var reservation = await context.LoadAsync<Reservation>(reservationId);
+
+        if (reservation != null)
+        {
+            reservation.Status = ReservationStatus.Cancelled.ToString();
+            await context.SaveAsync(reservation);
+        }
+
+        return reservation!;
     }
 }

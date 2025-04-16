@@ -14,4 +14,6 @@ public interface IReservationService
        string userId,
        string email,
        string role);
+
+    Task<ReservationResponseDto> CancelReservationAsync(string reservationId, string userId, string role);
 }

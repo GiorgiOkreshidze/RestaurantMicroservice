@@ -95,6 +95,50 @@ public class ReservationService(
         return mapper.Map<IEnumerable<ReservationResponseDto>>(reservations);
     }
 
+    public async Task<ReservationResponseDto> CancelReservationAsync(string reservationId, string userId, string role)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId)
+            ?? throw new NotFoundException("Reservation", reservationId);
+
+        // Check if reservation is already completed or in progress
+        if (reservation.Status == ReservationStatus.Finished.ToString())
+        {
+            throw new ConflictException("Cannot cancel a completed reservation");
+        }
+
+        if (reservation.Status == ReservationStatus.InProgress.ToString())
+        {
+            throw new ConflictException("Cannot cancel a reservation that is currently in progress");
+        }
+
+        // Check if user has permissions to cancel
+        if (role.Equals("Customer", StringComparison.OrdinalIgnoreCase))
+        {
+            var user = await ValidateUser(userId);
+            if (user.Email != reservation.UserEmail)
+            {
+                throw new UnauthorizedException("You can only cancel your own reservations");
+            }
+        }
+        else if (!role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            // If waiter, check if they are assigned to this reservation or location
+            if (userId != reservation.WaiterId)
+            {
+                var waiter = await ValidateUser(userId);
+                if (waiter.LocationId != reservation.LocationId)
+                {
+                    throw new UnauthorizedException("You can only cancel reservations at your assigned location");
+                }
+            }
+        }
+
+        // Cancel the reservation
+        var cancelledReservation = await reservationRepository.CancelReservationAsync(reservationId);
+
+        return mapper.Map<ReservationResponseDto>(cancelledReservation);
+    }
+
     #region Helper Methods For Reservation
     private async Task<ClientReservationResponse> ProcessWaiterReservation(
         WaiterReservationRequest request,
@@ -165,7 +209,7 @@ public class ReservationService(
     {
         var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id);
 
-        if (waiterId != existingReservation.WaiterId)
+        if (waiterId != existingReservation?.WaiterId)
         {
             throw new UnauthorizedException("Only assigned waiter can modify this reservation");
         }
@@ -177,7 +221,7 @@ public class ReservationService(
     {
         var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id);
 
-        if (user.Email != existingReservation.UserEmail)
+        if (user.Email != existingReservation?.UserEmail)
         {
             throw new UnauthorizedException("Only the customer or assigned waiter can modify this reservation");
         }

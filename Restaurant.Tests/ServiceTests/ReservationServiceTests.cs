@@ -336,7 +336,7 @@ public class ReservationServiceTests
             [request, _reservation, waiterId, locationId]);
 
         // Act
-        var result = await task;
+        var result = await task!;
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -388,7 +388,7 @@ public class ReservationServiceTests
             [request, _reservation, waiterId, locationId]);
 
         // Act
-        var result = await task;
+        var result = await task!;
 
         // Assert
         Assert.That(result, Is.Not.Null);
@@ -916,6 +916,208 @@ public class ReservationServiceTests
         // Assert
         Assert.That(result, Is.Not.Null);
         Assert.That(result, Is.Empty);
+    }
+    #endregion
+
+    #region DeleteReservation
+    [Test]
+    public async Task CancelReservationAsync_CustomerCancellingOwnReservation_ReturnsCancelledReservation()
+    {
+        // Arrange
+        var reservationId = "res-1";
+        var userId = "user-123";
+        var role = "Customer";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserEmail = "user@example.com",
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        };
+
+        var user = new User
+        {
+            Id = userId,
+            Email = "user@example.com",
+            FirstName = "John",
+            LastName = "Doe",
+            ImgUrl = "some user",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        };
+
+        _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+        _userRepositoryMock.Setup(r => r.GetUserByIdAsync(userId))
+            .ReturnsAsync(user);
+        _reservationRepositoryMock.Setup(r => r.CancelReservationAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act
+        var result = await _reservationService.CancelReservationAsync(reservationId, userId, role);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(reservationId), Times.Once);
+    }
+
+    [Test]
+    public async Task CancelReservationAsync_AdminCancellingAnyReservation_ReturnsCancelledReservation()
+    {
+        // Arrange
+        var reservationId = "res-1";
+        var adminId = "admin-123";
+        var role = "Admin";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserEmail = "user@example.com",
+            UserInfo = "John Doe",
+            WaiterId = "waiter-456",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        };
+
+        _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+        _reservationRepositoryMock.Setup(r => r.CancelReservationAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act
+        var result = await _reservationService.CancelReservationAsync(reservationId, adminId, role);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(reservationId), Times.Once);
+    }
+
+    [Test]
+    public void CancelReservationAsync_ReservationNotFound_ThrowsNotFoundException()
+    {
+        // Arrange
+        var reservationId = "non-existent-id";
+        var userId = "user-123";
+        var role = "Customer";
+
+        _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync((Reservation?)null);
+
+        // Act & Assert
+        var exception = Assert.ThrowsAsync<NotFoundException>(async () =>
+            await _reservationService.CancelReservationAsync(reservationId, userId, role));
+
+        Assert.That(exception?.Message, Does.Contain(reservationId));
+        _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public void CancelReservationAsync_CompletedReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservationId = "res-1";
+        var userId = "user-123";
+        var role = "Customer";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            Status = "Finished",  // Completed reservation
+            UserEmail = "user@example.com",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        };
+
+        _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var exception = Assert.ThrowsAsync<ConflictException>(async () =>
+            await _reservationService.CancelReservationAsync(reservationId, userId, role));
+
+        Assert.That(exception?.Message, Does.Contain("Cannot cancel a completed reservation"));
+        _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public void CancelReservationAsync_CustomerCancellingOtherCustomerReservation_ThrowsUnauthorizedException()
+    {
+        // Arrange
+        var reservationId = "res-1";
+        var userId = "user-123";
+        var role = "Customer";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserEmail = "other@example.com",  // Different user email
+            UserInfo = "Other User",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        };
+
+        var user = _user;
+
+        _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+        _userRepositoryMock.Setup(r => r.GetUserByIdAsync(userId))
+            .ReturnsAsync(user);
+
+        // Act & Assert
+        var exception = Assert.ThrowsAsync<UnauthorizedException>(async () =>
+            await _reservationService.CancelReservationAsync(reservationId, userId, role));
+
+        Assert.That(exception?.Message, Does.Contain("You can only cancel your own reservations"));
+        _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(It.IsAny<string>()), Times.Never);
     }
     #endregion
 }
