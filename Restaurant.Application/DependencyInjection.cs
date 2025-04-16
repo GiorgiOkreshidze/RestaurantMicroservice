@@ -17,6 +17,7 @@ namespace Restaurant.Application
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IReservationService, ReservationService>();
+            services.AddScoped<IFeedbackService, FeedbackService>();
             return services;
         }
     }
