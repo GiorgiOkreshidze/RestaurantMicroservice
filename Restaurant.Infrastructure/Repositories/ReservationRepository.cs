@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 
@@ -101,6 +102,65 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
     };
 
         // Execute the scan operation
+        var reservations = await context.ScanAsync<Reservation>(scanConditions, new DynamoDBOperationConfig
+        {
+            Conversion = DynamoDBEntryConversion.V2
+        }).GetRemainingAsync();
+
+        return reservations;
+    }
+
+    public async Task<IEnumerable<Reservation>> GetCustomerReservationsAsync(string email)
+    {
+        if (string.IsNullOrEmpty(email))
+        {
+            return new List<Reservation>();
+        }
+
+        // Since there's no GSI on userEmail yet, we need to scan with a filter
+        var scanCondition = new List<ScanCondition>
+    {
+        new ScanCondition("UserEmail", ScanOperator.Equal, email)
+    };
+
+        var reservations = await context.ScanAsync<Reservation>(scanCondition, new DynamoDBOperationConfig
+        {
+            Conversion = DynamoDBEntryConversion.V2
+        }).GetRemainingAsync();
+
+        return reservations;
+    }
+
+    public async Task<IEnumerable<Reservation>> GetWaiterReservationsAsync(ReservationsQueryParametersDto queryParams, string waiterId)
+    {
+        if (string.IsNullOrEmpty(waiterId))
+        {
+            return new List<Reservation>();
+        }
+
+        // Build scan conditions
+        var scanConditions = new List<ScanCondition>
+    {
+        new ScanCondition("WaiterId", ScanOperator.Equal, waiterId)
+    };
+
+        // Add optional filter conditions
+        if (!string.IsNullOrEmpty(queryParams.Date))
+        {
+            scanConditions.Add(new ScanCondition("Date", ScanOperator.Equal, queryParams.Date));
+        }
+
+        if (!string.IsNullOrEmpty(queryParams.TimeFrom))
+        {
+            scanConditions.Add(new ScanCondition("TimeFrom", ScanOperator.Equal, queryParams.TimeFrom));
+        }
+
+        if (!string.IsNullOrEmpty(queryParams.TableId))
+        {
+            scanConditions.Add(new ScanCondition("TableId", ScanOperator.Equal, queryParams.TableId));
+        }
+
+        // Execute scan
         var reservations = await context.ScanAsync<Reservation>(scanConditions, new DynamoDBOperationConfig
         {
             Conversion = DynamoDBEntryConversion.V2

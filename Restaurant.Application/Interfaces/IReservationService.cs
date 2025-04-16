@@ -8,4 +8,10 @@ public interface IReservationService
     Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId);
 
     Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters);
+
+    Task<IEnumerable<ReservationResponseDto>> GetReservationsAsync(
+       ReservationsQueryParameters queryParams,
+       string userId,
+       string email,
+       string role);
 }
