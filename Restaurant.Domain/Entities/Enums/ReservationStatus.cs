@@ -8,5 +8,5 @@ public enum ReservationStatus
     Reserved,
     InProgress,
     Finished,
-    Canceled,
+    Cancelled,
 }

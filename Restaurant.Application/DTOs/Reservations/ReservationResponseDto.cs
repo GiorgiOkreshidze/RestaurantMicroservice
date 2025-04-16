@@ -1,8 +1,4 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using System;
-using Restaurant.Domain.Entities.Enums;
-
-namespace Restaurant.Application.DTOs.Reservations
+﻿namespace Restaurant.Application.DTOs.Reservations
 {
     public class ReservationResponseDto
     {
@@ -15,8 +11,6 @@ namespace Restaurant.Application.DTOs.Reservations
         public required string LocationId { get; set; }
 
         public required string LocationAddress { get; set; }
-
-        public required string PreOrder { get; set; }
 
         public required string Status { get; set; }
 

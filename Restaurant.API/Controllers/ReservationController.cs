@@ -92,4 +92,31 @@ public class ReservationController(IReservationService reservationService) : Con
         var reservations = await reservationService.GetReservationsAsync(queryParams, userId, email, role!);
         return Ok(reservations);
     }
+
+    /// <summary>
+    /// Cancels an existing reservation.
+    /// </summary>
+    /// <param name="id">ID of the reservation to cancel</param>
+    /// <returns>The cancelled reservation</returns>
+    /// <response code="200">Reservation cancelled successfully</response>
+    /// <response code="404">If the reservation is not found</response>
+    /// <response code="409">If the reservation cannot be cancelled due to its current status</response>
+    /// <response code="401">If the user is not authorized to cancel this reservation</response>
+    [HttpDelete("{id}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ReservationResponseDto>> CancelReservation(string id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        var result = await reservationService.CancelReservationAsync(id, userId, role);
+        return Ok(result);
+    }
 }

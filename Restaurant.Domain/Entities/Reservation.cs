@@ -63,7 +63,7 @@ public class Reservation
     [DynamoDBProperty("clientType")]
     public string ClientTypeString
     {
-        get => ClientType.ToString();
+        get => ClientType.ToString()!;
         set => ClientType = Enum.TryParse<ClientType>(value, out var role) ? role : Enums.ClientType.CUSTOMER;
     }
 }
