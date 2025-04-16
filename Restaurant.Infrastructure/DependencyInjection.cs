@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IReservationRepository, ReservationRepository>();
         services.AddScoped<ITableRepository, TableRepository>();
         services.AddScoped<IWaiterRepository, WaiterRepository>();
+        services.AddScoped<IFeedbackRepository, FeedbackRepository>();
 
         return services;
     }
