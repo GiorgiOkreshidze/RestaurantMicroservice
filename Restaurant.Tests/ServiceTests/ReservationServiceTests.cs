@@ -166,7 +166,7 @@ public class ReservationServiceTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
-        Assert.That(ex.Message, Does.Contain("Reservation must be within restaurant working hours."));
+        Assert.That(ex?.Message, Does.Contain("Reservation must be within restaurant working hours."));
     }
 
     [Test]
@@ -179,7 +179,7 @@ public class ReservationServiceTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
             _reservationService.UpsertReservationAsync(_request, "user-id"));
-        Assert.That(ex.Message,
+        Assert.That(ex?.Message,
             Does.Contain("Table with ID table-1 cannot accommodate 100 guests. Maximum capacity: 4."));
     }
 
@@ -213,7 +213,7 @@ public class ReservationServiceTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
-        Assert.That(ex.Message, Is.EqualTo(
+        Assert.That(ex?.Message, Is.EqualTo(
             $"Reservation #{_request.Id} at location {_location.Address} is already booked during the requested time period."));
     }
 
@@ -247,7 +247,7 @@ public class ReservationServiceTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
-        Assert.That(ex.Message, Is.EqualTo(
+        Assert.That(ex?.Message, Is.EqualTo(
             $"Reservation #{_request.Id} at location {_location.Address} is already booked during the requested time period."));
     }
 
@@ -269,7 +269,7 @@ public class ReservationServiceTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<ResourceNotFoundException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
-        Assert.That(ex.Message,
+        Assert.That(ex?.Message,
             Is.EqualTo($"No waiters available for location ID: {_request.LocationId} after counting reservations"));
     }
 

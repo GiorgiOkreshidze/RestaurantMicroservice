@@ -8,9 +8,9 @@ namespace Restaurant.Infrastructure.Repositories;
 
 public class TableRepository(IDynamoDBContext context) : ITableRepository
 {
-    public async Task<RestaurantTable?> GetTableById(string id)
+    public async Task<RestaurantTable?> GetTableById(string tableId)
     {
-        var table = await context.LoadAsync<RestaurantTable>(id);
+        var table = await context.LoadAsync<RestaurantTable>(tableId);
         return table ?? null;
     }
 

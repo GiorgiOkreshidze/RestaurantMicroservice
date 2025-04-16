@@ -42,12 +42,12 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
         return reservation;
     }
 
-    public async Task<bool> ReservationExistsAsync(string id)
+    public async Task<bool> ReservationExistsAsync(string reservationId)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (string.IsNullOrWhiteSpace(reservationId))
             return false;
 
-        var reservation = await context.LoadAsync<Reservation>(id);
+        var reservation = await context.LoadAsync<Reservation>(reservationId);
         return reservation is not null;
     }
 
@@ -67,9 +67,9 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
         return reservations.Count;
     }
 
-    public async Task<Reservation?> GetReservationByIdAsync(string id)
+    public async Task<Reservation?> GetReservationByIdAsync(string reservationId)
     {
-        var reservation = await context.LoadAsync<Reservation>(id);
+        var reservation = await context.LoadAsync<Reservation>(reservationId);
         return reservation ?? null;
     }
 
