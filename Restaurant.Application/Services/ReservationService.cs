@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime.Internal;
@@ -11,6 +12,7 @@ using Restaurant.Application.DTOs.Users;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain;
+using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
@@ -74,7 +76,25 @@ public class ReservationService(
             _ => throw new ArgumentOutOfRangeException(nameof(reservationRequest), reservationRequest, null)
         };
     }
-    
+
+    public async Task<IEnumerable<ReservationResponseDto>> GetReservationsAsync(ReservationsQueryParameters queryParams, string userId, string email, string role)
+    {
+        IEnumerable<Reservation> reservations;
+        // Compare strings directly instead of converting to enum
+        if (role.Equals("Customer", StringComparison.OrdinalIgnoreCase))
+        {
+            reservations = await reservationRepository.GetCustomerReservationsAsync(email);
+        }
+        else
+        {
+            var queryParamsDto = mapper.Map<ReservationsQueryParametersDto>(queryParams);
+            reservations = await reservationRepository.GetWaiterReservationsAsync(queryParamsDto, userId);
+        }
+
+        // Map domain entities to response DTOs
+        return mapper.Map<IEnumerable<ReservationResponseDto>>(reservations);
+    }
+
     #region Helper Methods For Reservation
     private async Task<ClientReservationResponse> ProcessWaiterReservation(
         WaiterReservationRequest request,

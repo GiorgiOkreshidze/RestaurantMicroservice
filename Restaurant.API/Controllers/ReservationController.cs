@@ -68,4 +68,28 @@ public class ReservationController(IReservationService reservationService) : Con
         var locations = await reservationService.UpsertReservationAsync(request, userId);
         return Ok(locations);
     }
+
+    /// <summary>
+    /// Gets reservations based on user identity and query parameters
+    /// </summary>
+    /// <param name="queryParams">Optional query parameters for filtering reservations</param>
+    /// <returns>List of reservations</returns>
+    /// <response code="200">Reservations retrieved successfully</response>
+    /// <response code="401">Unauthorized access</response>
+    [HttpGet]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<ReservationResponseDto>>> GetReservations([FromQuery] ReservationsQueryParameters queryParams)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var email = User.FindFirst(ClaimTypes.Email)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(email))
+            return Unauthorized("Invalid Request");
+
+        var reservations = await reservationService.GetReservationsAsync(queryParams, userId, email, role!);
+        return Ok(reservations);
+    }
 }

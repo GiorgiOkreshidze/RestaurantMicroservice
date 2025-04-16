@@ -10,6 +10,7 @@ using Restaurant.Application.DTOs.Users;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
+using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
@@ -50,6 +51,9 @@ public class ReservationServiceTests
             cfg.CreateMap<RestaurantTable, RestaurantTableDto>().ReverseMap();
             cfg.CreateMap<Reservation, ClientReservationResponse>().ReverseMap();
             cfg.CreateMap<User, UserDto>().ReverseMap();
+            cfg.CreateMap<Reservation, ReservationResponseDto>()
+                      .ForMember(dest => dest.ClientType, opt => opt.MapFrom(src => src.ClientTypeString));
+            cfg.CreateMap<ReservationsQueryParameters, ReservationsQueryParametersDto>();
         });
         _mapper = config.CreateMapper();
 
@@ -599,6 +603,315 @@ public class ReservationServiceTests
 
         // Act
         var result = await _reservationService.GetAvailableTablesAsync(filterParameters);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.Empty);
+    }
+    #endregion
+
+    #region GetReservations
+    [Test]
+    public async Task GetReservationsAsync_CustomerRole_ReturnsCustomerReservations()
+    {
+        // Arrange
+        var queryParams = new ReservationsQueryParameters();
+        var userId = "user-123";
+        var email = "customer@example.com";
+        var role = "Customer";
+
+        var customerReservations = new List<Reservation>
+    {
+        new Reservation
+        {
+            Id = "res-1",
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserEmail = email,
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        },
+        new Reservation
+        {
+            Id = "res-2",
+            Date = "2023-05-02",
+            GuestsNumber = "3",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-2",
+            TableCapacity = "6",
+            TableNumber = "T2",
+            TimeFrom = "18:00",
+            TimeTo = "20:00",
+            TimeSlot = "18:00 - 20:00",
+            UserEmail = email,
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        }
+    };
+
+        _reservationRepositoryMock.Setup(r => r.GetCustomerReservationsAsync(email))
+            .ReturnsAsync(customerReservations);
+
+        // Act
+        var result = await _reservationService.GetReservationsAsync(queryParams, userId, email, role);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Count(), Is.EqualTo(2));
+        _reservationRepositoryMock.Verify(r => r.GetCustomerReservationsAsync(email), Times.Once);
+        _reservationRepositoryMock.Verify(r => r.GetWaiterReservationsAsync(It.IsAny<ReservationsQueryParametersDto>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetReservationsAsync_WaiterRole_ReturnsWaiterReservations()
+    {
+        // Arrange
+        var queryParams = new ReservationsQueryParameters
+        {
+            Date = "2023-05-01",
+            TableId = "table-1"
+        };
+        var userId = "waiter-123";
+        var email = "waiter@example.com";
+        var role = "Waiter";
+
+        var waiterReservations = new List<Reservation>
+    {
+        new Reservation
+        {
+            Id = "res-3",
+            Date = "2023-05-01",
+            GuestsNumber = "4",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "16:00",
+            TimeTo = "18:00",
+            TimeSlot = "16:00 - 18:00",
+            UserEmail = "customer1@example.com",
+            UserInfo = "Customer One",
+            WaiterId = userId,
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        },
+        new Reservation
+        {
+            Id = "res-4",
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "19:00",
+            TimeTo = "21:00",
+            TimeSlot = "19:00 - 21:00",
+            UserEmail = "customer2@example.com",
+            UserInfo = "Customer Two",
+            WaiterId = userId,
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "VISITOR"
+        }
+    };
+
+        _reservationRepositoryMock.Setup(r => r.GetWaiterReservationsAsync(
+            It.IsAny<ReservationsQueryParametersDto>(), userId))
+            .ReturnsAsync(waiterReservations);
+
+        // Act
+        var result = await _reservationService.GetReservationsAsync(queryParams, userId, email, role);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.Count(), Is.EqualTo(2));
+        _reservationRepositoryMock.Verify(r => r.GetCustomerReservationsAsync(It.IsAny<string>()), Times.Never);
+        _reservationRepositoryMock.Verify(r => r.GetWaiterReservationsAsync(It.IsAny<ReservationsQueryParametersDto>(), userId), Times.Once);
+    }
+
+    [Test]
+    public async Task GetReservationsAsync_QueryParametersMapping_MapsCorrectly()
+    {
+        // Arrange
+        var queryParams = new ReservationsQueryParameters
+        {
+            Date = "2023-05-01",
+            TimeFrom = "14:00",
+            TableId = "table-1"
+        };
+        var userId = "waiter-123";
+        var email = "waiter@example.com";
+        var role = "Waiter";
+
+        var mappedDto = new ReservationsQueryParametersDto
+        {
+            Date = "2023-05-01",
+            TimeFrom = "14:00",
+            TableId = "table-1"
+        };
+
+        var waiterReservations = new List<Reservation>
+    {
+        new Reservation
+        {
+            Id = "res-3",
+            Date = "2023-05-01",
+            GuestsNumber = "4",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "14:00",
+            TimeTo = "16:00",
+            TimeSlot = "14:00 - 16:00",
+            UserEmail = "customer@example.com",
+            UserInfo = "Customer Name",
+            WaiterId = userId,
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        }
+    };
+
+        _reservationRepositoryMock.Setup(r => r.GetWaiterReservationsAsync(
+            It.Is<ReservationsQueryParametersDto>(dto =>
+                dto.Date == mappedDto.Date &&
+                dto.TimeFrom == mappedDto.TimeFrom &&
+                dto.TableId == mappedDto.TableId),
+            userId))
+            .ReturnsAsync(waiterReservations);
+
+        // Act
+        await _reservationService.GetReservationsAsync(queryParams, userId, email, role);
+
+        // Assert
+        _reservationRepositoryMock.Verify(r => r.GetWaiterReservationsAsync(
+            It.Is<ReservationsQueryParametersDto>(dto =>
+                dto.Date == mappedDto.Date &&
+                dto.TimeFrom == mappedDto.TimeFrom &&
+                dto.TableId == mappedDto.TableId),
+            userId), Times.Once);
+    }
+
+    [Test]
+    public async Task GetReservationsAsync_ClientTypeMapping_MapsCorrectly()
+    {
+        // Arrange
+        var queryParams = new ReservationsQueryParameters();
+        var userId = "user-123";
+        var email = "customer@example.com";
+        var role = "Customer";
+
+        var customerReservations = new List<Reservation>
+    {
+        new Reservation
+        {
+            Id = "res-1",
+            Date = "2023-05-01",
+            GuestsNumber = "2",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-1",
+            TableCapacity = "4",
+            TableNumber = "T1",
+            TimeFrom = "12:00",
+            TimeTo = "14:00",
+            TimeSlot = "12:00 - 14:00",
+            UserEmail = email,
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "CUSTOMER"
+        },
+        new Reservation
+        {
+            Id = "res-2",
+            Date = "2023-05-02",
+            GuestsNumber = "3",
+            LocationId = "loc-1",
+            LocationAddress = "123 Main St",
+            PreOrder = "Not implemented",
+            Status = "Reserved",
+            TableId = "table-2",
+            TableCapacity = "6",
+            TableNumber = "T2",
+            TimeFrom = "18:00",
+            TimeTo = "20:00",
+            TimeSlot = "18:00 - 20:00",
+            UserEmail = email,
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "VISITOR"
+        }
+    };
+
+        _reservationRepositoryMock.Setup(r => r.GetCustomerReservationsAsync(email))
+            .ReturnsAsync(customerReservations);
+
+        // Configure mapper mock to properly map ClientTypeString
+        var config = new MapperConfiguration(cfg => {
+            cfg.CreateMap<Reservation, ReservationResponseDto>()
+                .ForMember(dest => dest.ClientType, opt => opt.MapFrom(src => src.ClientTypeString));
+        });
+        var mapper = config.CreateMapper();
+
+        var service = new ReservationService(
+            _reservationRepositoryMock.Object,
+            _locationRepositoryMock.Object,
+            _userRepositoryMock.Object,
+            _tableRepositoryMock.Object,
+            _waiterRepositoryMock.Object,
+            _validatorFilterMock.Object,
+            mapper);
+
+        // Act
+        var result = await service.GetReservationsAsync(queryParams, userId, email, role);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        var resultList = result.ToList();
+        Assert.That(resultList[0].ClientType, Is.EqualTo("CUSTOMER"));
+        Assert.That(resultList[1].ClientType, Is.EqualTo("VISITOR"));
+    }
+
+    [Test]
+    public async Task GetReservationsAsync_EmptyReservations_ReturnsEmptyCollection()
+    {
+        // Arrange
+        var queryParams = new ReservationsQueryParameters();
+        var userId = "user-123";
+        var email = "customer@example.com";
+        var role = "Customer";
+
+        _reservationRepositoryMock.Setup(r => r.GetCustomerReservationsAsync(email))
+            .ReturnsAsync(new List<Reservation>());
+
+        // Act
+        var result = await _reservationService.GetReservationsAsync(queryParams, userId, email, role);
 
         // Assert
         Assert.That(result, Is.Not.Null);
