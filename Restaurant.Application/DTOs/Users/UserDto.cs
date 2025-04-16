@@ -10,6 +10,8 @@ public class UserDto
 
     public required string LastName { get; set; }
     
+    public string? LocationId { get; set; }
+    
     public string GetFullName()
     {
         return $"{FirstName} {LastName}";

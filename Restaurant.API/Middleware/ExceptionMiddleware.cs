@@ -75,6 +75,17 @@ namespace Restaurant.API.Middleware
                         Type = nameof(NotFoundException),
                     };
                     break;
+                case ConflictException conflictException:
+                    logger.LogWarning(conflictException, "Conflict occurred: {Message}", conflictException.Message);
+                    statusCode = HttpStatusCode.Conflict;
+                    problem = new ErrorResponse
+                    {
+                        Title = conflictException.Message,
+                        Status = (int)statusCode,
+                        Detail = conflictException.InnerException?.Message,
+                        Type = nameof(ConflictException),
+                    };
+                    break;
                 default:
                     logger.LogError(exception, "Unhandled exception occurred");
                     problem = new ErrorResponse
