@@ -18,6 +18,8 @@ namespace Restaurant.Application
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IReservationService, ReservationService>();
             services.AddScoped<IFeedbackService, FeedbackService>();
+            services.AddScoped<IUserService, UserService>();
+            
             return services;
         }
     }

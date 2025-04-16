@@ -1,4 +1,6 @@
-﻿namespace Restaurant.Application.DTOs.Users;
+﻿using Restaurant.Domain.Entities.Enums;
+
+namespace Restaurant.Application.DTOs.Users;
 
 public class UserDto
 {
@@ -9,6 +11,10 @@ public class UserDto
     public required string FirstName { get; set; }
 
     public required string LastName { get; set; }
+    
+    public required string ImgUrl { get; set; }
+
+    public Role Role { get; set; } = Role.Customer;
     
     public string? LocationId { get; set; }
     
