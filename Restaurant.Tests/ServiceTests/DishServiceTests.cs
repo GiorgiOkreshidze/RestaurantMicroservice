@@ -19,7 +19,7 @@ public class DishServiceTests
     private Mock<ILocationRepository> _locationRepositoryMock = null!;
     private IDishService _dishService = null!;
     private IMapper _mapper = null!;
-    private List<Dish> _dishes;
+    private List<Dish> _dishes = null!;
 
     [SetUp]
     public void SetUp()
@@ -218,7 +218,7 @@ public class DishServiceTests
     }
     
     [Test]
-    public async Task GetDishByIdAsync_InvalidId_ReturnsNotFoundException()
+    public void GetDishByIdAsync_InvalidId_ReturnsNotFoundException()
     {
         // Arrange
         var invalidDishId = "invalid-id";
@@ -231,7 +231,7 @@ public class DishServiceTests
         var ex = Assert.ThrowsAsync<NotFoundException>(async () =>
             await _dishService.GetDishByIdAsync(invalidDishId));
 
-        Assert.That(ex.Message, Is.EqualTo($"The Dish with the key '{invalidDishId}' was not found."));
+        Assert.That(ex?.Message, Is.EqualTo($"The Dish with the key '{invalidDishId}' was not found."));
     }
     
     [Test]

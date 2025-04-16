@@ -13,9 +13,9 @@ builder.RegisterAuthorization();
 builder.Services.AddControllers();
 
 builder.Services.Configure<JwtSettings>(options => {
-    options.Key = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new ArgumentNullException("JWT_KEY", "JWT_KEY environment variable is not set");
-    options.Issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? throw new ArgumentNullException("JWT_ISSUER", "JWT_ISSUER environment variable is not set");
-    options.Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new ArgumentNullException("JWT_AUDIENCE","JWT_ISSUER environment variable is not set"); ;
+    options.Key = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new ArgumentNullException(nameof(JwtSettings.Key), "JWT_KEY environment variable is not set");
+    options.Issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? throw new ArgumentNullException(nameof(JwtSettings.Issuer), "JWT_ISSUER environment variable is not set");
+    options.Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new ArgumentNullException(nameof(JwtSettings.Audience), "JWT_ISSUER environment variable is not set"); ;
 
     if (int.TryParse(Environment.GetEnvironmentVariable("JWT_ACCESS_TOKEN_EXPIRY"), out int accessExpiry))
         options.AccessTokenExpiryMinutes = accessExpiry;
@@ -52,6 +52,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+app.UseCors();
 
 app.MapGet("/", () =>
 {
