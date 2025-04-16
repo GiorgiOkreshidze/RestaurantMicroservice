@@ -7,7 +7,7 @@ using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Application.Services
 {
-    public class DishService(IDishRepository dishRepository, ILocationRepository locationRepository, IMapper mapper)
+    public class DishService(IDishRepository dishRepository,ILocationRepository locationRepository, IMapper mapper)
         : IDishService
     {
         public async Task<IEnumerable<DishDto>> GetSpecialtyDishesByLocationAsync(string locationId)

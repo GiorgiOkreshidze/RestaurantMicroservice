@@ -89,4 +89,23 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
 
         return reservations;
     }
+
+    public async Task<IEnumerable<Reservation>> GetReservationsForDateAndLocation(string date, string locationId)
+    {
+        // Create scan conditions for date and locationId
+        var scanConditions = new List<ScanCondition>
+    {
+        new ScanCondition("Date", ScanOperator.Equal, date),
+        new ScanCondition("LocationId", ScanOperator.Equal, locationId),
+        new ScanCondition("Status", ScanOperator.NotEqual, "Cancelled")
+    };
+
+        // Execute the scan operation
+        var reservations = await context.ScanAsync<Reservation>(scanConditions, new DynamoDBOperationConfig
+        {
+            Conversion = DynamoDBEntryConversion.V2
+        }).GetRemainingAsync();
+
+        return reservations;
+    }
 }

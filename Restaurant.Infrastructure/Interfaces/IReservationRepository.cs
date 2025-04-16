@@ -13,4 +13,6 @@ public interface IReservationRepository
     Task<Reservation?> GetReservationByIdAsync(string reservationId);
     
     Task<List<Reservation>> GetReservationsByDateLocationTable(string date, string locationAddress, string tableNumber);
+
+    Task<IEnumerable<Reservation>> GetReservationsForDateAndLocation(string date, string locationId);
 }
