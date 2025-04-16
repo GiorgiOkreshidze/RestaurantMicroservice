@@ -48,4 +48,24 @@ public class ReservationController(IReservationService reservationService) : Con
         var locations = await reservationService.UpsertReservationAsync(request, userId);
         return Ok(locations);
     }
+    
+    /// <summary>
+    /// Creates or updates a reservation on behalf of a waiter.
+    /// </summary>
+    /// <param name="request">The reservation details provided by the waiter.</param>
+    /// <returns>The created or updated reservation information.</returns>
+    /// <response code="200">Returns the successfully created or updated reservation.</response>
+    /// <response code="400">If the reservation request is invalid (e.g., conflicting reservation, invalid table).</response>
+    /// <response code="404">If required resources (e.g., table, waiter) are not found.</response>
+    [HttpPost("waiter")]
+    [Authorize]
+    public async Task<IActionResult> CreateWaiterReservations([FromBody] WaiterReservationRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token.");
+        var locations = await reservationService.UpsertReservationAsync(request, userId);
+        return Ok(locations);
+    }
 }

@@ -5,7 +5,7 @@ namespace Restaurant.Application.Interfaces;
 
 public interface IReservationService
 {
-    Task<ReservationDto> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId);
+    Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId);
 
     Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters);
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime.Internal;
@@ -43,7 +43,7 @@ public class ReservationService(
         return tablesWithSlots;
     }
 
-    public async Task<ReservationDto> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
+    public async Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
     {
         ValidateTimeSlot(reservationRequest);
         var location = await locationRepository.GetLocationByIdAsync(reservationRequest.LocationId) ?? throw new NotFoundException("Location", reservationRequest.LocationId);
@@ -69,13 +69,57 @@ public class ReservationService(
 
         return reservationRequest switch
         {
+            WaiterReservationRequest waiterRequest => await ProcessWaiterReservation(waiterRequest, reservationDto, userId, location.Id),
             ClientReservationRequest clientRequest => await ProcessClientReservation(clientRequest, reservationDto, userId),
             _ => throw new ArgumentOutOfRangeException(nameof(reservationRequest), reservationRequest, null)
         };
     }
-
+    
     #region Helper Methods For Reservation
-    private async Task<ReservationDto> ProcessClientReservation(ClientReservationRequest request, Reservation reservation, string userId)
+    private async Task<ClientReservationResponse> ProcessWaiterReservation(
+        WaiterReservationRequest request,
+        Reservation reservation,
+        string waiterId, string locationId)
+    {
+        reservation.ClientType = request.ClientType;
+        reservation.WaiterId = waiterId;
+
+        var waiter = await ValidateUser(waiterId);
+   
+        if (waiter.LocationId != locationId)
+        {
+            throw new UnauthorizedException("Waiter cannot create reservations for a different location.");
+        }
+
+        var reservationExists = await reservationRepository.ReservationExistsAsync(reservation.Id);
+
+        if (reservationExists)
+        {
+            await ValidateModificationPermissionsForWaiter(reservation, waiterId);
+        }
+
+        if (request.ClientType == ClientType.CUSTOMER && request.CustomerId != null)
+        {
+            var customer = await ValidateUser(request.CustomerId);
+            reservation.UserEmail = customer.Email;
+            reservation.UserInfo = $"Customer {customer.FirstName} {customer.LastName}";
+
+            await CheckForConflictingReservations(request, reservation.LocationAddress, customer.Email);
+        }
+        else
+        {
+            reservation.UserEmail = waiter.Email;
+            reservation.UserInfo = $"Waiter {waiter.GetFullName()} (Visitor)";
+
+            await CheckForConflictingReservations(request, reservation.LocationAddress, waiter.Email);
+        }
+
+        await reservationRepository.UpsertReservationAsync(reservation);
+        
+        return mapper.Map<ClientReservationResponse>(reservation);
+    }
+        
+    private async Task<ClientReservationResponse> ProcessClientReservation(ClientReservationRequest request, Reservation reservation, string userId)
     {
         var user = await ValidateUser(userId);
         HandleClientReservation(reservation, user);
@@ -91,15 +135,27 @@ public class ReservationService(
         {
             await ValidateModificationPermissionsForClient(reservation, user);
         }
-
+        
         await reservationRepository.UpsertReservationAsync(reservation);
-
-        return mapper.Map<ReservationDto>(reservation);
+        
+        return mapper.Map<ClientReservationResponse>(reservation);
     }
 
+    private async Task ValidateModificationPermissionsForWaiter(Reservation newReservation, string waiterId)
+    {
+        var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id);
+
+        if (waiterId != existingReservation.WaiterId)
+        {
+            throw new UnauthorizedException("Only assigned waiter can modify this reservation");
+        }
+        
+        ValidateReservationTimeLock(mapper.Map<ReservationDto>(newReservation));
+    }
+    
     private async Task ValidateModificationPermissionsForClient(Reservation newReservation, UserDto user)
     {
-        var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id) ?? throw new NotFoundException("Reservation", newReservation.Id);
+        var existingReservation = await reservationRepository.GetReservationByIdAsync(newReservation.Id);
 
         if (user.Email != existingReservation.UserEmail)
         {
@@ -119,7 +175,7 @@ public class ReservationService(
 
         if (DateTime.UtcNow > reservationDateTime.AddMinutes(-30))
         {
-            throw new ArgumentException("Reservations cannot be modified within 30 minutes of start time");
+            throw new ConflictException("Reservations cannot be modified within 30 minutes of start time");
         }
     }
 
@@ -145,7 +201,7 @@ public class ReservationService(
 
         if (newTimeFrom < firstSlot || newTimeTo > lastSlot)
         {
-            throw new ArgumentException("Reservation must be within restaurant working hours.");
+            throw new ConflictException("Reservation must be within restaurant working hours.");
         }
 
         bool isValidSlot = predefinedSlots.Any(slot =>
@@ -154,7 +210,7 @@ public class ReservationService(
 
         if (!isValidSlot)
         {
-            throw new ArgumentException("Reservation must exactly match one of the predefined time slots.");
+            throw new ConflictException("Reservation must exactly match one of the predefined time slots.");
         }
     }
 
@@ -164,19 +220,19 @@ public class ReservationService(
 
         if (table is null)
         {
-            throw new ResourceNotFoundException($"Table with ID {tableId} not found.");
+            throw new NotFoundException($"Table with ID {tableId} not found.");
         }
-
+    
         if (!int.TryParse(guestsNumber, out int guests))
         {
-            throw new ArgumentException("Invalid number format for GuestsNumber.");
+            throw new ConflictException("Invalid number format for GuestsNumber.");
         }
-
+        
         int capacity = table.Capacity;
-
+    
         if (capacity < guests)
         {
-            throw new ArgumentException(
+            throw new ConflictException(
                 $"Table with ID {tableId} cannot accommodate {guestsNumber} guests. " +
                 $"Maximum capacity: {table.Capacity}.");
         }
@@ -205,7 +261,7 @@ public class ReservationService(
 
         return reservationCounts
             .OrderBy(x => x.Value)
-            .FirstOrDefault().Key ?? throw new ResourceNotFoundException($"No waiters available for location ID: {locationId} after counting reservations");
+            .FirstOrDefault().Key ?? throw new NotFoundException($"No waiters available for location ID: {locationId} after counting reservations");
     }
 
     private async Task CheckForConflictingReservations(
@@ -230,12 +286,12 @@ public class ReservationService(
             {
                 if (existingReservation.UserEmail == userEmail)
                 {
-                    throw new ArgumentException(
+                    throw new ConflictException(
                         $"You already have reservation booked at location " +
                         $"{locationAddress} during the requested time period.");
                 }
 
-                throw new ArgumentException(
+                throw new ConflictException(
                     $"Reservation #{request.Id} at location " +
                     $"{locationAddress} is already booked during the requested time period.");
             }

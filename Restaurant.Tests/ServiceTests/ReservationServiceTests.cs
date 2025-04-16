@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Amazon.DynamoDBv2.Model;
 using AutoMapper;
 using FluentValidation;
@@ -11,6 +11,7 @@ using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Tests.ServiceTests;
@@ -42,12 +43,12 @@ public class ReservationServiceTests
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
-
-
+        
         var config = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<Reservation, ReservationDto>().ReverseMap();
             cfg.CreateMap<RestaurantTable, RestaurantTableDto>().ReverseMap();
+            cfg.CreateMap<Reservation, ClientReservationResponse>().ReverseMap();
             cfg.CreateMap<User, UserDto>().ReverseMap();
         });
         _mapper = config.CreateMapper();
@@ -157,34 +158,35 @@ public class ReservationServiceTests
     }
 
     [Test]
-    public void UpsertReservationAsync_InvalidTimeSlot_ThrowsArgumentException()
+    public void UpsertReservationAsync_InvalidTimeSlot_ThrowsConflictException()
     {
         // Arrange
         _request.TimeFrom = "01:00"; // Outside of predefined slot range
         _request.TimeTo = "02:00";
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<ArgumentException>(() =>
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
         Assert.That(ex?.Message, Does.Contain("Reservation must be within restaurant working hours."));
     }
 
     [Test]
-    public void UpsertReservationAsync_TableTooSmall_ThrowsArgumentException()
+    public void UpsertReservationAsync_TableTooSmall_ThrowsConflictException()
     {
         // Arrange
         _request.GuestsNumber = "100"; // Invalid number of guests
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
         _tableRepositoryMock.Setup(r => r.GetTableById(_request.TableId)).ReturnsAsync(_table);
+
         // Act & Assert
-        var ex = Assert.ThrowsAsync<ArgumentException>(() =>
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
             _reservationService.UpsertReservationAsync(_request, "user-id"));
         Assert.That(ex?.Message,
             Does.Contain("Table with ID table-1 cannot accommodate 100 guests. Maximum capacity: 4."));
     }
 
     [Test]
-    public void UpsertReservationAsync_ConflictingReservationDifferentUser_ThrowsArgumentException()
+    public void UpsertReservationAsync_ConflictingReservationDifferentUser_ThrowsConflictException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -211,14 +213,14 @@ public class ReservationServiceTests
             .ReturnsAsync(0);
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<ArgumentException>(() =>
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
         Assert.That(ex?.Message, Is.EqualTo(
             $"Reservation #{_request.Id} at location {_location.Address} is already booked during the requested time period."));
     }
 
     [Test]
-    public void UpsertReservationAsync_ConflictingReservationSameUser_ThrowsArgumentException()
+    public void UpsertReservationAsync_ConflictingReservationSameUser_ThrowsConflictException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -245,14 +247,14 @@ public class ReservationServiceTests
             .ReturnsAsync(0);
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<ArgumentException>(() =>
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
         Assert.That(ex?.Message, Is.EqualTo(
             $"Reservation #{_request.Id} at location {_location.Address} is already booked during the requested time period."));
     }
 
     [Test]
-    public void UpsertReservationAsync_NoWaitersAvailable_ThrowsResourceNotFoundException()
+    public void UpsertReservationAsync_NoWaitersAvailable_ThrowsNotFoundException()
     {
         // Arrange
         _locationRepositoryMock.Setup(r => r.GetLocationByIdAsync(_request.LocationId)).ReturnsAsync(_location);
@@ -267,10 +269,129 @@ public class ReservationServiceTests
             .ReturnsAsync(new List<User>());
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+        var ex = Assert.ThrowsAsync<NotFoundException>(() =>
             _reservationService.UpsertReservationAsync(_request, _userId));
         Assert.That(ex?.Message,
             Is.EqualTo($"No waiters available for location ID: {_request.LocationId} after counting reservations"));
+    }
+    
+   [Test]
+    public async Task ProcessWaiterReservation_CustomerReservation_SuccessfullyReturnsResponse()
+    {
+        // Arrange
+        var request = new WaiterReservationRequest
+        {
+            ClientType = ClientType.CUSTOMER,
+            CustomerId = "customer-1",
+            Date = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            TimeFrom = "13:30",
+            TimeTo = "15:00",
+            TableId = "table-1",
+            LocationId = "loc-1",
+            GuestsNumber = "1"
+        };
+        
+        _reservation.TimeFrom = request.TimeFrom;
+        _reservation.TimeTo = request.TimeTo;
+        _reservation.TableId = request.TableId;
+        
+        var waiter = new User
+        {
+            Id = "waiter-1",
+            Email = "waiter@example.com",
+            FirstName = "Jane",
+            LastName = "Doe",
+            LocationId = "loc-1",
+            ImgUrl = "null",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        };
+        var customer = new User
+        {
+            Id = "customer-1",
+            Email = "customer@example.com",
+            FirstName = "John",
+            LastName = "Smith",            
+            ImgUrl = "null",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            
+        };
+        var waiterId = "waiter-1";
+        var locationId = "loc-1";
+
+        _userRepositoryMock.Setup(r => r.GetUserByIdAsync(waiterId)).ReturnsAsync(waiter);
+        _userRepositoryMock.Setup(r => r.GetUserByIdAsync(request.CustomerId)).ReturnsAsync(customer);
+        _reservationRepositoryMock.Setup(r => r.ReservationExistsAsync(_reservation.Id)).ReturnsAsync(false);
+        _reservationRepositoryMock.Setup(r => r.GetReservationsByDateLocationTable(
+            request.Date, _reservation.LocationAddress, request.TableId))
+            .ReturnsAsync(new List<Reservation>());
+        
+        // Use reflection to access private method
+        var methodInfo = typeof(ReservationService).GetMethod("ProcessWaiterReservation", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var task = (Task<ClientReservationResponse>)methodInfo.Invoke(_reservationService,
+            [request, _reservation, waiterId, locationId]);
+
+        // Act
+        var result = await task;
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.UserEmail, Is.EqualTo(customer.Email));
+        Assert.That(result.UserInfo, Is.EqualTo($"Customer {customer.FirstName} {customer.LastName}"));
+        Assert.That(result.WaiterId, Is.EqualTo(waiterId));
+        Assert.That(result.ClientType, Is.EqualTo(ClientType.CUSTOMER));
+    }
+    
+    [Test]
+    public async Task ProcessWaiterReservation_VisitorReservation_SuccessfullyReturnsResponse()
+    {
+        // Arrange
+        var request = new WaiterReservationRequest
+        {
+            ClientType = ClientType.VISITOR,
+            CustomerId = null,
+            Date = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            TimeFrom = "13:30",
+            TimeTo = "15:00",
+            TableId = "table-1",
+            LocationId = "loc-1",
+            GuestsNumber = "1"
+        };
+
+        var waiter = new User
+        {
+            Id = "waiter-1",
+            Email = "waiter@example.com",
+            FirstName = "Jane",
+            LastName = "Doe",
+            LocationId = "loc-1",
+            ImgUrl = "null",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        };
+        var waiterId = "waiter-1";
+        var locationId = "loc-1";
+
+        _userRepositoryMock.Setup(r => r.GetUserByIdAsync(waiterId)).ReturnsAsync(waiter);
+        _reservationRepositoryMock.Setup(r => r.ReservationExistsAsync(_reservation.Id)).ReturnsAsync(false);
+        _reservationRepositoryMock.Setup(r => r.GetReservationsByDateLocationTable(
+            request.Date, _reservation.LocationAddress, request.TableId))
+            .ReturnsAsync(new List<Reservation>());
+
+        // Use reflection to access private method
+        var methodInfo = typeof(ReservationService).GetMethod("ProcessWaiterReservation", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var task = (Task<ClientReservationResponse>)methodInfo.Invoke(_reservationService,
+            [request, _reservation, waiterId, locationId]);
+
+        // Act
+        var result = await task;
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.UserEmail, Is.EqualTo(waiter.Email));
+        Assert.That(result.UserInfo, Is.EqualTo($"Waiter {waiter.FirstName} {waiter.LastName} (Visitor)"));
+        Assert.That(result.WaiterId, Is.EqualTo(waiterId));
+        Assert.That(result.ClientType, Is.EqualTo(ClientType.VISITOR));
     }
 
     #endregion
