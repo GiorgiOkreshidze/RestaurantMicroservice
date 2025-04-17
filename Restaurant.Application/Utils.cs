@@ -1,4 +1,5 @@
-﻿using Restaurant.Domain;
+﻿using System.ComponentModel;
+using Restaurant.Domain;
 
 namespace Restaurant.Application;
 
@@ -25,5 +26,12 @@ public static class Utils
         }
 
         return slots;
+    }
+    
+    public static string GetEnumDescription(Enum value)
+    {
+        var field = value.GetType().GetField(value.ToString());
+        var attribute = Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) as DescriptionAttribute;
+        return attribute == null ? value.ToString() : attribute.Description;
     }
 }

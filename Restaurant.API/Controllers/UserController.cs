@@ -28,4 +28,18 @@ public class UserController(IUserService userService) : ControllerBase
 
         return Ok(userProfile);
     }
+    
+    /// <summary>
+    /// Retrieves a list of all users.
+    /// </summary>
+    /// <returns>A list of user profiles.</returns>
+    /// <response code="200">Returns the list of users successfully.</response>
+    /// <response code="401">If the user is not authenticated or the token is invalid.</response>
+    [HttpGet]
+    [Authorize(Roles = "Waiter")]
+    public async Task<IActionResult> GetAllUsers()
+    {
+        var users = await userService.GetAllUsersAsync();
+        return Ok(users);
+    }
 }

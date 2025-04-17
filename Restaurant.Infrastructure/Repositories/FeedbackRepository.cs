@@ -4,20 +4,15 @@ using Restaurant.Application.DTOs.Feedbacks;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Restaurant.Infrastructure.Repositories
 {
-    public class FeedbackRepository(IDynamoDBContext dynamoDBContext) : IFeedbackRepository
+    public class FeedbackRepository(IDynamoDBContext context) : IFeedbackRepository
     {
         public async Task<(List<Feedback>, string?)> GetFeedbacksAsync(string id, FeedbackQueryParameters queryParams)
         {
             var queryConfig = CreateQueryConfiguration(id, queryParams);
-            var search = dynamoDBContext.FromQueryAsync<Feedback>(queryConfig);
+            var search = context.FromQueryAsync<Feedback>(queryConfig);
 
             int itemsToSkip = 0;
             if (!string.IsNullOrEmpty(queryParams.NextPageToken) &&
@@ -40,6 +35,44 @@ namespace Restaurant.Infrastructure.Repositories
             }
 
             return (pagedResults, nextPageToken);
+        }
+
+        public async Task UpsertFeedbackByReservationAndTypeAsync(Feedback feedback)
+        {
+            var reservationIdTypeKey = $"{feedback.ReservationId}#{feedback.Type}";
+            feedback.ReservationIdType = reservationIdTypeKey;
+            feedback.LocationIdType = $"{feedback.LocationId}#{feedback.Type}";
+
+            var config = new QueryOperationConfig
+            {
+                IndexName = "ReservationTypeIndex",
+                Filter = new QueryFilter(),
+            };
+
+            config.Filter.AddCondition("reservationId#type", QueryOperator.Equal, reservationIdTypeKey);
+
+            var feedbacks = await context.FromQueryAsync<Feedback>(config).GetRemainingAsync();
+
+            var existingFeedback = feedbacks.FirstOrDefault();
+
+            if (existingFeedback != null && !String.IsNullOrEmpty(existingFeedback.LocationId) &&
+                !String.IsNullOrEmpty(existingFeedback.TypeDate))
+            {
+                await UpdateExistingFeedbackRateAndCommentAsync(feedback, existingFeedback);
+            }
+            else
+            {
+                await context.SaveAsync(feedback); // Insert new feedback
+            }
+        }
+
+        private async Task UpdateExistingFeedbackRateAndCommentAsync(Feedback newFeedback, Feedback existingFeedback)
+        {
+            existingFeedback.Rate = newFeedback.Rate;
+            existingFeedback.Comment = newFeedback.Comment;
+            existingFeedback.TypeDate = $"{newFeedback.Type}#{newFeedback.Date}";
+
+            await context.SaveAsync(existingFeedback);
         }
 
         private QueryOperationConfig CreateQueryConfiguration(string locationId, FeedbackQueryParameters queryParams)

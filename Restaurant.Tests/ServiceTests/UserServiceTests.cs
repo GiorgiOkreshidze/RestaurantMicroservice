@@ -16,6 +16,7 @@ public class UserServiceTests
     private IUserService _userService = null!;
     private IMapper _mapper = null!;
     private User _user = null!;
+    private List<User> _users = null!;
 
     [SetUp]
     public void SetUp()
@@ -34,6 +35,26 @@ public class UserServiceTests
             LastName = "Doe",
             ImgUrl = "http://example.com/image.jpg",
             CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        };
+
+        _users = new List<User>
+        {
+            new()
+            {
+                Email = "example@example.com",
+                FirstName = "John",
+                LastName = "Doe",
+                ImgUrl = "http://example.com/image.jpg",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            },
+            new()
+            {
+                Email = "example2@example.com",
+                FirstName = "Johny",
+                LastName = "Depp",
+                ImgUrl = "http://example.com/image.jpg",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            },
         };
     }
 
@@ -74,5 +95,18 @@ public class UserServiceTests
             await _userService.GetUserByIdAsync(invalidUserId));
 
         Assert.That(ex?.Message, Is.EqualTo($"The User with the key '{invalidUserId}' was not found."));
+    }
+    
+    [Test]
+    public async Task GetAllUsersAsync_ReturnsListOfUsers()
+    {
+        // Arrange= 
+        _userRepositoryMock.Setup(repo => repo.GetAllUsersAsync()).ReturnsAsync(_users);
+
+        // Act
+        var result = await _userService.GetAllUsersAsync();
+
+        // Assert
+        Assert.That(result.ToList(), Has.Count.EqualTo(2));
     }
 }

@@ -99,7 +99,7 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
     {
         new ScanCondition("Date", ScanOperator.Equal, date),
         new ScanCondition("LocationId", ScanOperator.Equal, locationId),
-        new ScanCondition("Status", ScanOperator.NotEqual, "Cancelled")
+        new ScanCondition("Status", ScanOperator.NotEqual, "Canceled")
     };
 
         // Execute the scan operation
@@ -176,7 +176,7 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
 
         if (reservation != null)
         {
-            reservation.Status = ReservationStatus.Cancelled.ToString();
+            reservation.Status = ReservationStatus.Canceled.ToString();
             await context.SaveAsync(reservation);
         }
 

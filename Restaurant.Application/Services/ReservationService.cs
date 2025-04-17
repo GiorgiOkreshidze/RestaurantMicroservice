@@ -106,7 +106,7 @@ public class ReservationService(
             throw new ConflictException("Cannot cancel a completed reservation");
         }
 
-        if (reservation.Status == ReservationStatus.InProgress.ToString())
+        if (reservation.Status == Utils.GetEnumDescription(ReservationStatus.InProgress))
         {
             throw new ConflictException("Cannot cancel a reservation that is currently in progress");
         }
@@ -134,9 +134,9 @@ public class ReservationService(
         }
 
         // Cancel the reservation
-        var cancelledReservation = await reservationRepository.CancelReservationAsync(reservationId);
+        var canceledReservation = await reservationRepository.CancelReservationAsync(reservationId);
 
-        return mapper.Map<ReservationResponseDto>(cancelledReservation);
+        return mapper.Map<ReservationResponseDto>(canceledReservation);
     }
 
     #region Helper Methods For Reservation
