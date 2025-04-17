@@ -41,32 +41,39 @@ public class FeedbackService(
 
         var userDto = mapper.Map<UserDto>(user);
         var reservationDto = mapper.Map<ReservationDto>(reservation);
-        
-        if (reservation.UserEmail != user.Email)
-            throw new UnauthorizedException("You are not authorized to add feedback for this reservation");
-        
-        if (reservation.Status != Utils.GetEnumDescription(ReservationStatus.InProgress) && 
-            reservation.Status != Utils.GetEnumDescription(ReservationStatus.Finished)) 
-            throw new ConflictException("Reservation should be in status 'In Progress' or 'Finished'");
 
-        if (!string.IsNullOrEmpty(feedbackRequest.CuisineRating) &&
-            int.TryParse(feedbackRequest.CuisineRating, out var cuisineRating))
-        {
-            if (cuisineRating is < 0 or > 5) throw new ConflictException("Cuisine rating must be between 0 and 5");
-        }
+        ValidateReservationAndUser(reservation, user, feedbackRequest);
 
-        if (!string.IsNullOrEmpty(feedbackRequest.ServiceRating) &&
-            int.TryParse(feedbackRequest.ServiceRating, out var serviceRating))
-        {
-            if (serviceRating is < 0 or > 5) throw new ConflictException("Service rating must be between 0 and 5");
-        }
-        
         var feedbackDtos = await feedbackFactory.CreateFeedbacksAsync(feedbackRequest, userDto, reservationDto);
-        
+
         foreach (var feedbackDto in feedbackDtos)
         {
             var feedbackEntity = mapper.Map<Feedback>(feedbackDto);
             await feedbackRepository.UpsertFeedbackByReservationAndTypeAsync(feedbackEntity);
+        }
+    }
+
+    private void ValidateReservationAndUser(Reservation reservation, User user, CreateFeedbackRequest feedbackRequest)
+    {
+        if (reservation.UserEmail != user.Email)
+            throw new UnauthorizedException("You are not authorized to add feedback for this reservation");
+
+        if (reservation.Status != Utils.GetEnumDescription(ReservationStatus.InProgress) &&
+            reservation.Status != Utils.GetEnumDescription(ReservationStatus.Finished))
+            throw new ConflictException("Reservation should be in status 'In Progress' or 'Finished'");
+
+        if (!string.IsNullOrEmpty(feedbackRequest.CuisineRating) &&
+            int.TryParse(feedbackRequest.CuisineRating, out var cuisineRating) &&
+            (cuisineRating < 0 || cuisineRating > 5))
+        {
+            throw new ConflictException("Cuisine rating must be between 0 and 5");
+        }
+
+        if (!string.IsNullOrEmpty(feedbackRequest.ServiceRating) &&
+            int.TryParse(feedbackRequest.ServiceRating, out var serviceRating) &&
+            (serviceRating < 0 || serviceRating > 5))
+        {
+            throw new ConflictException("Service rating must be between 0 and 5");
         }
     }
 
@@ -126,7 +133,7 @@ public class FeedbackService(
     }
 
     private FeedbacksWithMetaData BuildResponseBody(
-        List<Feedback> feedbacks, 
+        List<Feedback> feedbacks,
         FeedbackQueryParameters queryParams,
         string? token
     )
@@ -153,7 +160,7 @@ public class FeedbackService(
                 Property = queryParams.SortProperty,
                 IgnoreCase = true
             },
-            Token = token 
+            Token = token
         };
     }
 }
