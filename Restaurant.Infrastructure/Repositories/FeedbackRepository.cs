@@ -62,6 +62,7 @@ namespace Restaurant.Infrastructure.Repositories
             }
             else
             {
+                feedback.TypeDate = $"{feedback.Type}#{feedback.Date}";
                 await context.SaveAsync(feedback); // Insert new feedback
             }
         }
