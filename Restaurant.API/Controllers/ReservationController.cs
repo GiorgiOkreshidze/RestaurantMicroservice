@@ -97,10 +97,10 @@ public class ReservationController(IReservationService reservationService) : Con
     /// Cancels an existing reservation.
     /// </summary>
     /// <param name="id">ID of the reservation to cancel</param>
-    /// <returns>The cancelled reservation</returns>
-    /// <response code="200">Reservation cancelled successfully</response>
+    /// <returns>The canceled reservation</returns>
+    /// <response code="200">Reservation canceled successfully</response>
     /// <response code="404">If the reservation is not found</response>
-    /// <response code="409">If the reservation cannot be cancelled due to its current status</response>
+    /// <response code="409">If the reservation cannot be canceled due to its current status</response>
     /// <response code="401">If the user is not authorized to cancel this reservation</response>
     [HttpDelete("{id}")]
     [Authorize]

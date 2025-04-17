@@ -1,115 +1,159 @@
-﻿using Restaurant.Application.DTOs.Feedbacks;
+﻿using System.ComponentModel;
+using AutoMapper;
+using Restaurant.Application.DTOs.Feedbacks;
+using Restaurant.Application.DTOs.Reservations;
+using Restaurant.Application.DTOs.Users;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Restaurant.Application.Services
+namespace Restaurant.Application.Services;
+
+public class FeedbackService(
+    IFeedbackRepository feedbackRepository, 
+    IReservationRepository reservationRepository, 
+    IUserRepository userRepository,
+    IFeedbackFactory feedbackFactory,
+    IMapper mapper) : IFeedbackService
 {
-    public class FeedbackService(IFeedbackRepository feedbackRepository) : IFeedbackService
+    public async Task<FeedbacksWithMetaData> GetFeedbacksByLocationIdAsync(string id, FeedbackQueryParameters queryParams)
     {
-        public async Task<FeedbacksWithMetaData> GetFeedbacksByLocationIdAsync(string id, FeedbackQueryParameters queryParams)
+        if (!string.IsNullOrEmpty(queryParams.Type))
         {
-            if (!string.IsNullOrEmpty(queryParams.Type))
-            {
-                queryParams.EnumType = queryParams.Type.ToFeedbackType();
-            }
-
-            var (feedbacks, token) = await GetPaginatedFeedbacks(id, queryParams);
-            var Response = BuildResponseBody(feedbacks, queryParams, token);
-
-            return Response;
+            queryParams.EnumType = queryParams.Type.ToFeedbackType();
         }
 
-        private async Task<(List<Feedback>, string?)> GetPaginatedFeedbacks(
-            string id,
-            FeedbackQueryParameters queryParams)
+        var (feedbacks, token) = await GetPaginatedFeedbacks(id, queryParams);
+        var Response = BuildResponseBody(feedbacks, queryParams, token);
+
+        return Response;
+    }
+
+    public async Task AddFeedbackAsync(CreateFeedbackRequest feedbackRequest, string userId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(feedbackRequest.ReservationId);
+        if (reservation is null) throw new NotFoundException("Reservation not found");
+        
+        var user = await userRepository.GetUserByIdAsync(userId);
+        if (user is null) throw new UnauthorizedException("User is not registered");
+
+        var userDto = mapper.Map<UserDto>(user);
+        var reservationDto = mapper.Map<ReservationDto>(reservation);
+        
+        if (reservation.UserEmail != user.Email)
+            throw new UnauthorizedException("You are not authorized to add feedback for this reservation");
+        
+        if (reservation.Status != Utils.GetEnumDescription(ReservationStatus.InProgress) && 
+            reservation.Status != Utils.GetEnumDescription(ReservationStatus.Finished)) 
+            throw new ConflictException("Reservation should be in status 'In Progress' or 'Finished'");
+
+        if (!string.IsNullOrEmpty(feedbackRequest.CuisineRating) &&
+            int.TryParse(feedbackRequest.CuisineRating, out var cuisineRating))
         {
-            // Page 1 is simply a direct query
-            if (queryParams.Page <= 1)
-            {
-                // Clear any token if we're requesting page 1 explicitly
-                queryParams.NextPageToken = null;
-                return await feedbackRepository.GetFeedbacksAsync(id, queryParams);
-            }
+            if (cuisineRating is < 0 or > 5) throw new ConflictException("Cuisine rating must be between 0 and 5");
+        }
 
-            // For pages > 1, we need to follow the tokens
-            string? currentToken = null;
-            List<Feedback> currentPageFeedbacks = [];
+        if (!string.IsNullOrEmpty(feedbackRequest.ServiceRating) &&
+            int.TryParse(feedbackRequest.ServiceRating, out var serviceRating))
+        {
+            if (serviceRating is < 0 or > 5) throw new ConflictException("Service rating must be between 0 and 5");
+        }
+        
+        var feedbackDtos = await feedbackFactory.CreateFeedbacksAsync(feedbackRequest, userDto, reservationDto);
+        
+        foreach (var feedbackDto in feedbackDtos)
+        {
+            var feedbackEntity = mapper.Map<Feedback>(feedbackDto);
+            await feedbackRepository.UpsertFeedbackByReservationAndTypeAsync(feedbackEntity);
+        }
+    }
 
-            // Start with page 1
-            var (firstPageFeedbacks, nextToken) = await feedbackRepository.GetFeedbacksAsync(id, queryParams);
+    private async Task<(List<Feedback>, string?)> GetPaginatedFeedbacks(
+        string id,
+        FeedbackQueryParameters queryParams)
+    {
+        // Page 1 is simply a direct query
+        if (queryParams.Page <= 1)
+        {
+            // Clear any token if we're requesting page 1 explicitly
+            queryParams.NextPageToken = null;
+            return await feedbackRepository.GetFeedbacksAsync(id, queryParams);
+        }
 
-            // If there's no first page or no next token, we can't get to page 2+
-            if (firstPageFeedbacks.Count == 0 || nextToken == null)
+        // For pages > 1, we need to follow the tokens
+        string? currentToken = null;
+        List<Feedback> currentPageFeedbacks = [];
+
+        // Start with page 1
+        var (firstPageFeedbacks, nextToken) = await feedbackRepository.GetFeedbacksAsync(id, queryParams);
+
+        // If there's no first page or no next token, we can't get to page 2+
+        if (firstPageFeedbacks.Count == 0 || nextToken == null)
+        {
+            return ([], null);
+        }
+
+        currentToken = nextToken;
+
+        // Follow the tokens to get to the requested page
+        for (int i = 1; i < queryParams.Page; i++)
+        {
+            // Update the token for the next query
+            queryParams.NextPageToken = currentToken;
+
+            // Get the next page
+            var (pageFeedbacks, pageToken) = await feedbackRepository.GetFeedbacksAsync(id, queryParams);
+
+            // If we got no results or no further token, we've reached the end
+            if (pageFeedbacks.Count == 0)
             {
                 return ([], null);
             }
 
-            currentToken = nextToken;
+            currentPageFeedbacks = pageFeedbacks;
+            currentToken = pageToken;
 
-            // Follow the tokens to get to the requested page
-            for (int i = 1; i < queryParams.Page; i++)
+            // If there's no next token, we've reached the last page
+            if (currentToken == null)
             {
-                // Update the token for the next query
-                queryParams.NextPageToken = currentToken;
-
-                // Get the next page
-                var (pageFeedbacks, pageToken) = await feedbackRepository.GetFeedbacksAsync(id, queryParams);
-
-                // If we got no results or no further token, we've reached the end
-                if (pageFeedbacks.Count == 0)
-                {
-                    return ([], null);
-                }
-
-                currentPageFeedbacks = pageFeedbacks;
-                currentToken = pageToken;
-
-                // If there's no next token, we've reached the last page
-                if (currentToken == null)
-                {
-                    break;
-                }
+                break;
             }
-
-            return (currentPageFeedbacks, currentToken);
         }
 
-        private FeedbacksWithMetaData BuildResponseBody(
-            List<Feedback> feedbacks, 
-            FeedbackQueryParameters queryParams,
-            string? token
-            )
+        return (currentPageFeedbacks, currentToken);
+    }
+
+    private FeedbacksWithMetaData BuildResponseBody(
+        List<Feedback> feedbacks, 
+        FeedbackQueryParameters queryParams,
+        string? token
+    )
+    {
+        return new FeedbacksWithMetaData
         {
-            return new FeedbacksWithMetaData
+            Content = feedbacks.Select(f => new FeedbackDto
             {
-                Content = feedbacks.Select(f => new FeedbackDto
-                {
-                    Id = f.Id,
-                    Rate = f.Rate,
-                    Comment = f.Comment,
-                    UserName = f.UserName,
-                    UserAvartarUrl = f.UserAvatarUrl,
-                    Date = f.Date,
-                    Type = f.Type,
-                    LocationId = f.LocationId
-                }).ToList(),
-                Sort = new FeedbacksSortMetaData
-                {
-                    Direction = queryParams.SortDirection.ToUpper(),
-                    NullHandling = "string",
-                    Ascending = queryParams.SortDirection.ToLower() == "asc",
-                    Property = queryParams.SortProperty,
-                    IgnoreCase = true
-                },
-                Token = token 
-            };
-        }
+                Id = f.Id,
+                Rate = f.Rate,
+                Comment = f.Comment,
+                UserName = f.UserName,
+                UserAvatarUrl = f.UserAvatarUrl,
+                Date = f.Date,
+                Type = f.Type,
+                LocationId = f.LocationId,
+                ReservationId = f.ReservationId
+            }).ToList(),
+            Sort = new FeedbacksSortMetaData
+            {
+                Direction = queryParams.SortDirection.ToUpper(),
+                NullHandling = "string",
+                Ascending = queryParams.SortDirection.ToLower() == "asc",
+                Property = queryParams.SortProperty,
+                IgnoreCase = true
+            },
+            Token = token 
+        };
     }
 }

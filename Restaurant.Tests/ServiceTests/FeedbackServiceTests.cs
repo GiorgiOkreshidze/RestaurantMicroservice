@@ -1,22 +1,26 @@
-﻿using Moq;
+﻿using AutoMapper;
+using Moq;
 using NUnit.Framework;
 using Restaurant.Application.DTOs.Feedbacks;
+using Restaurant.Application.DTOs.Reservations;
+using Restaurant.Application.DTOs.Users;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace Restaurant.Tests.ServiceTests
 {
     public class FeedbackServiceTests
     {
         private Mock<IFeedbackRepository> _feedbackRepositoryMock = null!;
+        private Mock<IUserRepository> _userRepositoryMock = null!;
+        private Mock<IFeedbackFactory> _feedbackFactoryMock = null!;
+        private Mock<IReservationRepository> _reservationRepositoryMock = null!;
+        private IMapper _mapper = null!;
         private IFeedbackService _feedbackService = null!;
         private List<Feedback> _feedbacks = null!;
         private readonly string _locationId = "3a88c365-970b-4a7a-a206-bc5282b9b25f";
@@ -25,7 +29,24 @@ namespace Restaurant.Tests.ServiceTests
         public void SetUp()
         {
             _feedbackRepositoryMock = new Mock<IFeedbackRepository>();
-            _feedbackService = new FeedbackService(_feedbackRepositoryMock.Object);
+            _userRepositoryMock = new Mock<IUserRepository>();
+            _feedbackFactoryMock = new Mock<IFeedbackFactory>();
+            _reservationRepositoryMock = new Mock<IReservationRepository>();
+            
+            var config = new MapperConfiguration(cfg =>
+            {
+                cfg.CreateMap<Feedback, FeedbackDto>().ReverseMap();
+                cfg.CreateMap<User, UserDto>().ReverseMap();
+                cfg.CreateMap<Reservation, ReservationDto>().ReverseMap();
+            });
+            _mapper = config.CreateMapper();
+
+            _feedbackService = new FeedbackService(
+                _feedbackRepositoryMock.Object,
+                _reservationRepositoryMock.Object,
+                _userRepositoryMock.Object,
+                _feedbackFactoryMock.Object,
+                _mapper);
 
             _feedbacks = new List<Feedback>
             {
@@ -35,7 +56,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "SERVICE_QUALITY",
                     TypeDate = "SERVICE_QUALITY#2025-04-24T12:00:00Z",
-                    Rate = "5",
+                    Rate = 5,
                     Comment = "Great place!",
                     UserName = "John Doe",
                     UserAvatarUrl = "https://example.com/avatar1.jpg",
@@ -50,7 +71,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "CUISINE_EXPERIENCE",
                     TypeDate = "CUISINE_EXPERIENCE#2025-04-23T12:00:00Z",
-                    Rate = "4",
+                    Rate = 4,
                     Comment = "Delicious food!",
                     UserName = "Jane Smith",
                     UserAvatarUrl = "https://example.com/avatar2.jpg",
@@ -173,7 +194,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "SERVICE_QUALITY",
                     TypeDate = "SERVICE_QUALITY#2025-04-24T12:00:00Z",
-                    Rate = "5",
+                    Rate = 5,
                     Comment = "Great place!",
                     UserName = "John Doe",
                     UserAvatarUrl = "https://example.com/avatar1.jpg",
@@ -187,7 +208,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "CUISINE_EXPERIENCE",
                     TypeDate = "CUISINE_EXPERIENCE#2025-04-23T12:00:00Z",
-                    Rate = "4",
+                    Rate = 4,
                     Comment = "Delicious food!",
                     UserName = "Jane Smith",
                     UserAvatarUrl = "https://example.com/avatar2.jpg",
@@ -205,7 +226,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "SERVICE_QUALITY",
                     TypeDate = "SERVICE_QUALITY#2025-04-20T12:00:00Z",
-                    Rate = "3",
+                    Rate = 3,
                     Comment = "Average service",
                     UserName = "Sam Smith",
                     UserAvatarUrl = "https://example.com/avatar3.jpg",
@@ -219,7 +240,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "CUISINE_EXPERIENCE",
                     TypeDate = "CUISINE_EXPERIENCE#2025-04-19T12:00:00Z",
-                    Rate = "2",
+                    Rate = 2,
                     Comment = "Food was okay",
                     UserName = "Alex Johnson",
                     UserAvatarUrl = "https://example.com/avatar4.jpg",
@@ -329,7 +350,7 @@ namespace Restaurant.Tests.ServiceTests
                     LocationId = _locationId,
                     Type = "SERVICE_QUALITY",
                     TypeDate = "SERVICE_QUALITY#2025-04-24T12:00:00Z",
-                    Rate = "5",
+                    Rate = 5,
                     Comment = "Great place!",
                     UserName = "John Doe",
                     UserAvatarUrl = "https://example.com/avatar1.jpg",
@@ -349,6 +370,169 @@ namespace Restaurant.Tests.ServiceTests
             Assert.That(result, Is.Not.Null);
             Assert.That(result.Content, Is.Not.Empty);
             Assert.That(result.Token, Is.Null);
+        }
+
+        [Test]
+        public async Task AddFeedbackAsync_ValidData_UpsertsFeedbacks()
+        {
+            // Arrange
+            var request = new CreateFeedbackRequest
+            {
+                ReservationId = "res-123",
+                ServiceRating = "5",
+                CuisineRating = "4"
+                // ...other properties...
+            };
+            
+            var reservation = new Reservation
+            {
+                Id = "res-1",
+                Date = "date",
+                TimeFrom = "13:30",
+                TimeTo = "15:00",
+                TableId = "table-1",
+                LocationAddress = "address",
+                UserEmail = "user@example.com",
+                GuestsNumber = "1",
+                LocationId = "loc 1",
+                PreOrder = "not implemented",
+                Status = "In Progress",
+                TableCapacity = "3",
+                TableNumber = "5",
+                TimeSlot = "13:30 - 15:00",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"), // Different user
+            };
+            
+            var user = new User
+            {
+                Id = "user-123",
+                Email = "user@example.com",
+                FirstName = "John",
+                LastName = "Doe",
+                ImgUrl = "some url",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            };
+            
+            var feedback = new FeedbackDto
+            {
+                Id = "feedback-1",
+                Rate = 5,
+                Comment = "Great service!",
+                UserName = "John Doe",
+                UserAvatarUrl = "https://example.com/avatar.jpg",
+                Date = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                Type = "SERVICE_QUALITY",
+                LocationId = reservation.LocationId,
+                ReservationId = reservation.Id
+            };
+            
+            _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync("res-123"))
+                .ReturnsAsync(reservation);
+            _userRepositoryMock.Setup(u => u.GetUserByIdAsync(It.IsAny<string>()))
+                .ReturnsAsync(user);
+            _feedbackFactoryMock.Setup(f => f.CreateFeedbacksAsync(request, It.IsAny<UserDto>(), It.IsAny<ReservationDto>()))
+                .ReturnsAsync(new List<FeedbackDto> { feedback }.ToArray());
+
+            // Act
+            await _feedbackService.AddFeedbackAsync(request, "user-123");
+
+            // Assert
+            _feedbackRepositoryMock.Verify(f => f.UpsertFeedbackByReservationAndTypeAsync(It.Is<Feedback>(
+                fb => fb.Id == "feedback-1")), Times.Once);
+        }
+
+        [Test]
+        public void AddFeedbackAsync_ReservationNotFound_ThrowsNotFoundException()
+        {
+            // Arrange
+            var request = new CreateFeedbackRequest { ReservationId = "invalid-res" };
+            _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync("invalid-res"))
+                .ReturnsAsync((Reservation)null);
+
+            // Act & Assert
+            Assert.ThrowsAsync<NotFoundException>(() => _feedbackService.AddFeedbackAsync(request, "user-123"));
+        }
+
+        [Test]
+        public void AddFeedbackAsync_UserNotRegistered_ThrowsUnauthorizedException()
+        {
+            // Arrange
+            var reservation = new Reservation
+            {
+                Id = "res-1",
+                Date = "date",
+                TimeFrom = "13:30",
+                TimeTo = "15:00",
+                TableId = "table-1",
+                LocationAddress = "address",
+                UserEmail = "otheruser@example.com",
+                GuestsNumber = "1",
+                LocationId = "loc 1",
+                PreOrder = "not implemented",
+                Status = "In Progress",
+                TableCapacity = "3",
+                TableNumber = "5",
+                TimeSlot = "13:30 - 15:00",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"), // Different user
+            };
+            
+            var request = new CreateFeedbackRequest { ReservationId = "res-123" };
+            _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync("res-123"))
+                .ReturnsAsync(reservation);
+            _userRepositoryMock.Setup(u => u.GetUserByIdAsync("user-123"))
+                .ReturnsAsync((User)null);
+
+            // Act & Assert
+            Assert.ThrowsAsync<UnauthorizedException>(() => _feedbackService.AddFeedbackAsync(request, "user-123"));
+        }
+
+        [Test]
+        public void AddFeedbackAsync_InvalidRating_ThrowsConflictException()
+        {
+            // Arrange
+            var request = new CreateFeedbackRequest
+            {
+                ReservationId = "res-123",
+                CuisineRating = "6"
+                // ...other properties...
+            };
+            
+            var reservation = new Reservation
+            {
+                Id = "res-1",
+                Date = "date",
+                TimeFrom = "13:30",
+                TimeTo = "15:00",
+                TableId = "table-1",
+                LocationAddress = "address",
+                UserEmail = "user@example.com",
+                GuestsNumber = "1",
+                LocationId = "loc 1",
+                PreOrder = "not implemented",
+                Status = "In Progress",
+                TableCapacity = "3",
+                TableNumber = "5",
+                TimeSlot = "13:30 - 15:00",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"), // Different user
+            };
+            
+            var user = new User
+            {
+                Id = "user-123",
+                Email = "user@example.com",
+                FirstName = "John",
+                LastName = "Doe",
+                ImgUrl = "some url",
+                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            };
+            
+            _reservationRepositoryMock.Setup(r => r.GetReservationByIdAsync("res-123"))
+                .ReturnsAsync(reservation);
+            _userRepositoryMock.Setup(u => u.GetUserByIdAsync(It.IsAny<string>()))
+                .ReturnsAsync(user);
+
+            // Act & Assert
+            Assert.ThrowsAsync<ConflictException>(() => _feedbackService.AddFeedbackAsync(request, "user-123"));
         }
     }
 }

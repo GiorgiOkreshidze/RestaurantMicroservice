@@ -921,7 +921,7 @@ public class ReservationServiceTests
 
     #region DeleteReservation
     [Test]
-    public async Task CancelReservationAsync_CustomerCancellingOwnReservation_ReturnsCancelledReservation()
+    public async Task CancelReservationAsync_CustomerCancellingOwnReservation_ReturnsCanceledReservation()
     {
         // Arrange
         var reservationId = "res-1";
@@ -975,7 +975,7 @@ public class ReservationServiceTests
     }
 
     [Test]
-    public async Task CancelReservationAsync_AdminCancellingAnyReservation_ReturnsCancelledReservation()
+    public async Task CancelReservationAsync_AdminCancellingAnyReservation_ReturnsCanceledReservation()
     {
         // Arrange
         var reservationId = "res-1";

@@ -11,5 +11,7 @@ namespace Restaurant.Infrastructure.Interfaces
     public interface IFeedbackRepository
     {
         public Task<(List<Feedback>, string?)> GetFeedbacksAsync(string id, FeedbackQueryParameters queryParams);
+        
+        public Task UpsertFeedbackByReservationAndTypeAsync(Feedback feedback);
     }
 }
