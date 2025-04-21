@@ -10,5 +10,7 @@ namespace Restaurant.Application.Interfaces
         Task<TokenResponseDto> LoginAsync(LoginDto request);
 
         Task<TokenResponseDto> RefreshTokenAsync(string refreshToken);
+
+        Task SignOutAsync(string refreshToken);
     }
 }

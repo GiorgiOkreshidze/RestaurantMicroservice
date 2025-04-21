@@ -13,6 +13,17 @@ namespace Restaurant.API.Middleware
             try
             {
                 await next(context);
+
+                if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
+                {
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new ErrorResponse
+                    {
+                        Title = "Invalid Request",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Type = "Unauthorized",
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -62,6 +73,17 @@ namespace Restaurant.API.Middleware
                         Status = (int)statusCode,
                         Detail = notFound.InnerException?.Message,
                         Type = nameof(NotFoundException),
+                    };
+                    break;
+                case ConflictException conflictException:
+                    logger.LogWarning(conflictException, "Conflict occurred: {Message}", conflictException.Message);
+                    statusCode = HttpStatusCode.Conflict;
+                    problem = new ErrorResponse
+                    {
+                        Title = conflictException.Message,
+                        Status = (int)statusCode,
+                        Detail = conflictException.InnerException?.Message,
+                        Type = nameof(ConflictException),
                     };
                     break;
                 default:

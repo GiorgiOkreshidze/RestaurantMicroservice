@@ -11,5 +11,7 @@ namespace Restaurant.Infrastructure.Interfaces
         Task<User?> GetUserByEmailAsync(string email);
 
         Task<User?> GetUserByIdAsync(string id);
+        
+        Task<List<User>> GetAllUsersAsync();
     }
 }
