@@ -1,5 +1,8 @@
+using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories
@@ -10,6 +13,21 @@ namespace Restaurant.Infrastructure.Repositories
         public async Task<User?> GetUserByIdAsync(string id)
         {
             return await context.LoadAsync<User>(id);
+        }
+
+        public Task<List<User>> GetAllUsersAsync()
+        {
+            var scanConditions = new List<ScanCondition>
+            {
+                new("RoleString", ScanOperator.Equal, Role.Customer.ToString())
+            };
+            
+            var users = context.ScanAsync<User>(scanConditions, new DynamoDBOperationConfig
+            {
+                Conversion = DynamoDBEntryConversion.V2
+            }).GetRemainingAsync();
+            
+            return users;
         }
 
         public async Task<User?> GetUserByEmailAsync(string email)
@@ -41,6 +59,5 @@ namespace Restaurant.Infrastructure.Repositories
 
             return queryResults.Count > 0;
         }
-
     }
 }
