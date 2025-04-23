@@ -20,7 +20,8 @@ namespace Restaurant.Application
             services.AddScoped<IFeedbackService, FeedbackService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IFeedbackFactory, FeedbackFactory>();
-            
+            services.AddScoped<IPreOrderService, PreOrderService>();
+
             return services;
         }
     }
