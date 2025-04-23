@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<ITableRepository, TableRepository>();
         services.AddScoped<IWaiterRepository, WaiterRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+        services.AddScoped<IPreOrderRepository, PreOrderRepository>();
 
         return services;
     }
