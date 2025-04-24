@@ -26,7 +26,6 @@ builder.Services.Configure<JwtSettings>(options => {
 });
 
 builder.Services.Configure<AwsSettings>(options => {
-    options.SqsQueueName = Environment.GetEnvironmentVariable("SQS_QUEUE_NAME") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueName), "SQS_QUEUE_NAME environment variable is not set");
     options.SqsQueueUrl = Environment.GetEnvironmentVariable("SQS_QUEUE_URL") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueUrl), "SQS_QUEUE_URL environment variable is not set");
 });
 
