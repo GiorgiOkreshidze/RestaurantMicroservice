@@ -16,4 +16,6 @@ public interface IReservationService
        string role);
 
     Task<ReservationResponseDto> CancelReservationAsync(string reservationId, string userId, string role);
+
+    Task<bool> CompleteReservationAsync(string reservationId);
 }

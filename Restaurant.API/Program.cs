@@ -4,6 +4,7 @@ using Restaurant.API.Middleware;
 using FluentValidation;
 using Restaurant.Application.DTOs.Auth;
 using Restaurant.API.Utilities;
+using Restaurant.Application.DTOs.Aws;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +23,11 @@ builder.Services.Configure<JwtSettings>(options => {
 
     if (int.TryParse(Environment.GetEnvironmentVariable("JWT_REFRESH_TOKEN_EXPIRY_DAYS"), out int refreshExpiry))
         options.RefreshTokenExpiryInDays = refreshExpiry;
+});
+
+builder.Services.Configure<AwsSettings>(options => {
+    options.SqsQueueName = Environment.GetEnvironmentVariable("SQS_QUEUE_NAME") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueName), "SQS_QUEUE_NAME environment variable is not set");
+    options.SqsQueueUrl = Environment.GetEnvironmentVariable("SQS_QUEUE_URL") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueUrl), "SQS_QUEUE_URL environment variable is not set");
 });
 
 builder.Services.AddValidatorsFromAssembly(

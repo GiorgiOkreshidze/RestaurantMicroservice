@@ -1,10 +1,10 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain.Entities.Enums;
 
 namespace Restaurant.API.Controllers;
 
@@ -118,5 +118,32 @@ public class ReservationController(IReservationService reservationService) : Con
 
         var result = await reservationService.CancelReservationAsync(id, userId, role);
         return Ok(result);
+    }
+    
+    /// <summary>
+    /// Marks a reservation as completed.
+    /// </summary>
+    /// <param name="id">The ID of the reservation to complete.</param>
+    /// <returns>A success message indicating the reservation was completed.</returns>
+    /// <response code="200">Reservation completed successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    /// <response code="404">Reservation not found.</response>
+    [HttpPost("{id}/complete")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<ReservationResponseDto>> CompleteReservation(string id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+        
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+
+        await reservationService.CompleteReservationAsync(id);
+        return Ok(new { message = "Reservation was completed successfully" });
     }
 }
