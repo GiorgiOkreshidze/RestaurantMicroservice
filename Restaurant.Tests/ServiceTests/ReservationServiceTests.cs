@@ -1,9 +1,12 @@
 using System.Globalization;
-using Amazon.DynamoDBv2.Model;
+using Amazon.SQS;
+using Amazon.SQS.Model;
 using AutoMapper;
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
+using Restaurant.Application.DTOs.Aws;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
@@ -26,6 +29,8 @@ public class ReservationServiceTests
     private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
     private IReservationService _reservationService = null!;
     private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
+    private Mock<IAmazonSQS> _sqsClientMock = null!;
+    private Mock<IOptions<AwsSettings>> _awsOptionsMock = null!;
     private IMapper _mapper = null!;
     
     private ClientReservationRequest _request = null!;
@@ -44,6 +49,8 @@ public class ReservationServiceTests
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
+        _sqsClientMock = new Mock<IAmazonSQS>();
+        _awsOptionsMock = new Mock<IOptions<AwsSettings>>();
         
         var config = new MapperConfiguration(cfg =>
         {
@@ -64,6 +71,8 @@ public class ReservationServiceTests
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
             _validatorFilterMock.Object,
+            _sqsClientMock.Object,
+            _awsOptionsMock.Object,
             _mapper);
         
         _request = new ClientReservationRequest
@@ -886,6 +895,8 @@ public class ReservationServiceTests
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
             _validatorFilterMock.Object,
+            _sqsClientMock.Object,
+            _awsOptionsMock.Object,
             mapper);
 
         // Act
@@ -1119,5 +1130,53 @@ public class ReservationServiceTests
         Assert.That(exception?.Message, Does.Contain("You can only cancel your own reservations"));
         _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(It.IsAny<string>()), Times.Never);
     }
+    #endregion
+
+    #region CompleteReservation
+
+    [Test]
+    public async Task CompleteReservation_ReservationIdCompletedSuccessfully_ReturnsTrue()
+    {
+        // Arrange
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(_reservation.Id))
+            .ReturnsAsync(_reservation);
+        
+        _reservationRepositoryMock
+            .Setup(r => r.UpsertReservationAsync(_reservation))
+            .ReturnsAsync(_reservation);
+        
+        var awsSettings = new AwsSettings { SqsQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue" };
+        _awsOptionsMock.Setup(x => x.Value).Returns(awsSettings);
+
+        _sqsClientMock
+            .Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SendMessageResponse { MessageId = "test-message-id" });
+        
+        // Act
+        var result = await _reservationService.CompleteReservationAsync(_reservation.Id);
+        
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.True);
+    }
+    
+    [Test]
+    public void CompleteReservation_ReservationIsNull_ThrowsNotFoundException()
+    {
+        // Arrange
+        var invalidReservationId = "invalid-reservation-id";
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(invalidReservationId))
+            .ReturnsAsync((Reservation?)null);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<NotFoundException>(async () =>
+            await _reservationService.CompleteReservationAsync(invalidReservationId));
+
+        Assert.That(ex?.Message, Is.EqualTo($"The Reservation with the key '{invalidReservationId}' was not found."));
+    }
+
     #endregion
 }

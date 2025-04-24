@@ -1,11 +1,6 @@
-using System.ComponentModel.DataAnnotations;
-using System.Data;
 using System.Globalization;
-using Amazon.DynamoDBv2.Model;
-using Amazon.Runtime.Internal;
 using AutoMapper;
 using FluentValidation;
-using Restaurant.Application.DTOs.Auth;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
@@ -16,6 +11,11 @@ using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
+using Amazon.SQS.Model;
+using Amazon.SQS;
+using System.Text.Json;
+using Microsoft.Extensions.Options;
+using Restaurant.Application.DTOs.Aws;
 
 namespace Restaurant.Application.Services;
 
@@ -26,6 +26,8 @@ public class ReservationService(
     ITableRepository tableRepository,
     IWaiterRepository waiterRepository,
     IValidator<FilterParameters> filterValidator,
+    IAmazonSQS amazonSqsClient,
+    IOptions<AwsSettings> awsSettings,
     IMapper mapper) : IReservationService
 {
     public async Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters)
@@ -137,6 +139,22 @@ public class ReservationService(
         var canceledReservation = await reservationRepository.CancelReservationAsync(reservationId);
 
         return mapper.Map<ReservationResponseDto>(canceledReservation);
+    }
+    
+    public async Task<bool> CompleteReservationAsync(string reservationId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
+        if (reservation == null)
+        {
+            throw new NotFoundException("Reservation", reservationId);
+        }
+        
+        reservation.Status = ReservationStatus.Finished.ToString();
+
+        await reservationRepository.UpsertReservationAsync(reservation);
+        await SendEventToSqs("reservation", reservation);
+
+        return true;
     }
 
     #region Helper Methods For Reservation
@@ -361,6 +379,30 @@ public class ReservationService(
             }
         }
     }
+    
+    private async Task SendEventToSqs<T>(string eventType, T payload)
+    {
+        try
+        {
+            var messageBody = JsonSerializer.Serialize(new
+            {
+                eventType,
+                payload
+            });
+    
+            var sendMessageRequest = new SendMessageRequest
+            {
+                QueueUrl = awsSettings.Value.SqsQueueUrl,
+                MessageBody = messageBody
+            };
+    
+            await amazonSqsClient.SendMessageAsync(sendMessageRequest);
+        }
+        catch (AmazonSQSException ex)
+        {
+            throw new ConflictException($"Error communicating with SQS: {ex.Message}");
+        }
+    } 
     #endregion
 
     #region Helper Methods For Available Tables
