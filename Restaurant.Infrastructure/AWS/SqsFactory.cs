@@ -4,7 +4,7 @@ using Amazon.SQS;
 
 namespace Restaurant.Infrastructure.AWS;
 
-public class  SqsFactory
+public class SqsFactory
 {
     public static IAmazonSQS CreateSqsClient(AWSCredentials credentials)
     {

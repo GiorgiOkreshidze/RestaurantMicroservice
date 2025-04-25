@@ -16,6 +16,9 @@ using Amazon.SQS;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Restaurant.Application.DTOs.Aws;
+using Restaurant.Infrastructure.Repositories;
+using Amazon.DynamoDBv2.Model;
+using Restaurant.Application.DTOs.Reports;
 
 namespace Restaurant.Application.Services;
 
@@ -25,6 +28,7 @@ public class ReservationService(
     IUserRepository userRepository,
     ITableRepository tableRepository,
     IWaiterRepository waiterRepository,
+    IFeedbackRepository feedbackRepository,
     IValidator<FilterParameters> filterValidator,
     IAmazonSQS amazonSqsClient,
     IOptions<AwsSettings> awsSettings,
@@ -143,18 +147,84 @@ public class ReservationService(
     
     public async Task<bool> CompleteReservationAsync(string reservationId)
     {
+        var reservation = await GetAndCompleteReservation(reservationId);
+
+        var report = await BuildReservationReport(reservation);
+        
+        await SendEventToSqs("reservation", report);
+
+        return true;
+    }
+
+    private async Task<Reservation> GetAndCompleteReservation(string reservationId)
+    {
         var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
         if (reservation == null)
         {
             throw new NotFoundException("Reservation", reservationId);
         }
-        
+    
         reservation.Status = ReservationStatus.Finished.ToString();
+        return await reservationRepository.UpsertReservationAsync(reservation);
+    }
+    
+    private async Task<ReportDto> BuildReservationReport(Reservation reservation)
+    {
+        // Calculate hours worked
+        var hoursWorked = CalculateHoursWorked(reservation.TimeFrom, reservation.TimeTo);
+    
+        // Get waiter information
+        var waiter = await GetWaiterInfo(reservation.WaiterId!);
+    
+        // Build the report
+        return new ReportDto
+        {
+            Date = reservation.Date,
+            Location = reservation.LocationAddress,
+            Waiter = waiter.FullName,
+            WaiterEmail = waiter.Email,
+            HoursWorked = hoursWorked,
+            AverageServiceFeedback = await GetAverageServiceFeedback(reservation.Id),
+            MinimumServiceFeedback = await GetMinimumServiceFeedback(reservation.Id)
+        };
+    }
+    
+    private static int CalculateHoursWorked(string timeFrom, string timeTo)
+    {
+        var fromTime = TimeSpan.Parse(timeFrom);
+        var toTime = TimeSpan.Parse(timeTo);
+        return (int)(toTime - fromTime).TotalHours;
+    }
+    
+    private async Task<(string Email, string FullName)> GetWaiterInfo(string waiterId)
+    {
+        var user = await userRepository.GetUserByIdAsync(waiterId) 
+                   ?? throw new NotFoundException("Waiter", waiterId);
+    
+        return (user.Email, $"{user.FirstName} {user.LastName}");
+    }
+    
+    private async Task<int> GetMinimumServiceFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetServiceFeedbacks(id);
 
-        await reservationRepository.UpsertReservationAsync(reservation);
-        await SendEventToSqs("reservation", reservation);
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
 
-        return true;
+        return feedbacks!.Min(f => f.Rate);
+    }
+
+    private async Task<double> GetAverageServiceFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetServiceFeedbacks(id);
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
+
+        return feedbacks!.Average(f => f.Rate);
     }
 
     #region Helper Methods For Reservation
