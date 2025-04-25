@@ -12,7 +12,7 @@ public class AutoRefreshingRoleCredentials : AWSCredentials
     private readonly int _durationSeconds;
     private readonly TimeSpan _refreshWindow;
         
-    private Credentials _currentCredentials;
+    private Credentials? _currentCredentials;
     private DateTime _expirationTime;
     private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
         

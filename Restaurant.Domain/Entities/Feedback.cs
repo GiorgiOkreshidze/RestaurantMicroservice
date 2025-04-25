@@ -44,7 +44,7 @@ namespace Restaurant.Domain.Entities
         [DynamoDBProperty("locationId#type")]
         public required string LocationIdType { get; set; }
 
-        [DynamoDBGlobalSecondaryIndexHashKey("ReservationByTypeIndex")]
+        [DynamoDBGlobalSecondaryIndexHashKey("ReservationTypeIndex")]
         [DynamoDBProperty("reservationId#type")]
         public required string ReservationIdType { get; set; }
 
