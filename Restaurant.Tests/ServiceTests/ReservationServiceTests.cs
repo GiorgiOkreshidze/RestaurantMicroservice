@@ -1259,5 +1259,47 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
         Assert.That(ex?.Message, Is.EqualTo($"The Reservation with the key '{invalidReservationId}' was not found."));
     }
 
+    [Test]
+    public void CompleteReservation_AlreadyFinishedReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservation = new Reservation
+        {
+            Id = "res-finished",
+            Date = "2023-05-01",
+            TimeFrom = "13:30",
+            TimeTo = "15:00",
+            WaiterId = "waiter-1",
+            Status = ReservationStatus.Finished.ToString(), // Already finished
+            LocationAddress = "Main Street 123",
+            GuestsNumber = "3",
+            LocationId = "loc-1",
+            PreOrder = "Not implemented",
+            TableId = "table-2",
+            TableCapacity = "6",
+            TableNumber = "T2",
+            TimeSlot = "13:30 - 15:00",
+            UserEmail = "userEmail",
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "VISITOR"
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservation.Id))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<ConflictException>(async () =>
+            await _reservationService.CompleteReservationAsync(reservation.Id));
+
+        Assert.That(ex?.Message, Is.EqualTo("The reservation has already been completed."));
+        
+        // Verify that UpsertReservationAsync was not called
+        _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.IsAny<Reservation>()), Times.Never);
+        // Verify that SendMessageAsync was not called
+        _sqsClientMock.Verify(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     #endregion
 }
