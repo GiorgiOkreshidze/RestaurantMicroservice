@@ -147,8 +147,8 @@ public class ReservationService(
     
     public async Task<bool> CompleteReservationAsync(string reservationId)
     {
-        var reservation = await GetAndCompleteReservation(reservationId);
-
+        var reservation = await GetAndCompleteReservation(reservationId) ?? throw new NotFoundException("Reservation", reservationId);
+        
         var report = await BuildReservationReport(reservation);
         
         await SendEventToSqs("reservation", report);
@@ -163,7 +163,12 @@ public class ReservationService(
         {
             throw new NotFoundException("Reservation", reservationId);
         }
-    
+        
+        if (reservation.Status == ReservationStatus.Finished.ToString())
+        {
+            throw new ConflictException("The reservation has already been completed.");
+        }
+
         reservation.Status = ReservationStatus.Finished.ToString();
         return await reservationRepository.UpsertReservationAsync(reservation);
     }
