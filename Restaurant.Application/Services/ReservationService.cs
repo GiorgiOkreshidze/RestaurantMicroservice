@@ -189,11 +189,11 @@ public class ReservationService(
         };
     }
     
-    private static int CalculateHoursWorked(string timeFrom, string timeTo)
+    private static decimal CalculateHoursWorked(string timeFrom, string timeTo)
     {
         var fromTime = TimeSpan.Parse(timeFrom);
         var toTime = TimeSpan.Parse(timeTo);
-        return (int)(toTime - fromTime).TotalHours;
+        return (decimal)(toTime - fromTime).TotalHours;
     }
     
     private async Task<(string Email, string FullName)> GetWaiterInfo(string waiterId)
