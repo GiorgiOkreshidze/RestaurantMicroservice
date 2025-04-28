@@ -26,8 +26,8 @@ namespace Restaurant.Application.Profiles
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
                 .ForMember(dest => dest.TimeSlot, opt => opt.MapFrom(src => src.TimeSlot))
                 .ForMember(dest => dest.Address, opt => opt.MapFrom(src => src.Address))
-                .ForMember(dest => dest.Date, opt => opt.MapFrom(src => src.CreateDate))
-                .ForMember(dest => dest.TotalAmount, opt => opt.MapFrom(src => src.TotalAmount))
+                .ForMember(dest => dest.ReservationDate, opt => opt.MapFrom(src => src.ReservationDate))
+                .ForMember(dest => dest.TotalPrice, opt => opt.MapFrom(src => src.TotalPrice))
                 .ForMember(dest => dest.DishItems, opt => opt.MapFrom(src => src.Items));
 
             CreateMap<List<PreOrder>, CartDto>()

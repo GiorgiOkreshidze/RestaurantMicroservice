@@ -13,15 +13,19 @@ public class PreOrder
     [DynamoDBHashKey("userId")]
     public required string UserId { get; set; }
 
-    [DynamoDBRangeKey("sk")]
-    public required string SortKey { get; set; }
+    [DynamoDBRangeKey("sk")] public string SortKey { get; set; } = string.Empty;
 
     // Calculated property to extract the PreOrderId from the SortKey
     [DynamoDBIgnore]
-    public string PreOrderId
+    public string? PreOrderId
     {
         get => SortKey?.Replace("PreOrder#", "");
-        set => SortKey = $"PreOrder#{value}";
+        init => SortKey = $"PreOrder#{value}";
+    }
+    
+    public void SetSortKey(string preOrderId)
+    {
+        SortKey = $"PreOrder#{preOrderId}";
     }
 
     [DynamoDBProperty("reservationId")]
@@ -32,15 +36,21 @@ public class PreOrder
 
     [DynamoDBProperty("createDate")]
     public DateTime CreateDate { get; set; }
-
-    [DynamoDBProperty("totalAmount")]
-    public decimal TotalAmount { get; set; }
-
-    [DynamoDBProperty("adderss")]
-    public required string Address { get; set; }
-
+    
+    [DynamoDBProperty("completionDate")]
+    public DateTime CompletionDate { get; set; }
+    
     [DynamoDBProperty("timeSlot")]
     public required string TimeSlot { get; set; }
+    
+    [DynamoDBProperty("reservationDate")]
+    public required string ReservationDate { get; set; }
+
+    [DynamoDBProperty("totalPrice")]
+    public decimal TotalPrice { get; set; }
+
+    [DynamoDBProperty("address")]
+    public required string Address { get; set; }
 
     // This won't be stored directly in DynamoDB but will be populated from related items
     [DynamoDBIgnore]
