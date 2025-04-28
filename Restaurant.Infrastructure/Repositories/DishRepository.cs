@@ -57,7 +57,23 @@ public class DishRepository(IDynamoDBContext context) : IDishRepository
 
         return dishes;
     }
+
+    public async Task<IEnumerable<Dish>> GetDishesByIdsAsync(IEnumerable<string> dishIds)
+    {
+        if (dishIds == null || !dishIds.Any())
+            return new List<Dish>();
+        
+        var dishes = new List<Dish>();
+        foreach (var id in dishIds)
+        {
+            var dish = await context.LoadAsync<Dish>(id);
+            if (dish != null)
+                dishes.Add(dish);
+        }
     
+        return dishes;
+    }
+
     private IEnumerable<Dish> ApplySorting(IEnumerable<Dish> dishes, DishSortBy? sortBy, SortDirection? sortDirection)
     {
         bool descending = sortDirection == SortDirection.Desc;

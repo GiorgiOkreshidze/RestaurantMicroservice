@@ -12,4 +12,6 @@ public interface IDishRepository
     Task<Dish?> GetDishByIdAsync(string id);
     
     Task<IEnumerable<Dish>> GetAllDishesAsync(DishFilterDto filter);
+    
+    Task<IEnumerable<Dish>> GetDishesByIdsAsync(IEnumerable<string> dishIds);
 }
