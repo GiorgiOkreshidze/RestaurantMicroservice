@@ -59,5 +59,15 @@ namespace Restaurant.Infrastructure.Repositories
 
             return queryResults.Count > 0;
         }
+
+        public async Task UpdatePasswordAsync(string userId, string newPasswordHash)
+        {
+            var user = await GetUserByIdAsync(userId);
+            if (user != null)
+            {
+                user.PasswordHash = newPasswordHash;
+                await context.SaveAsync(user);
+            }
+        }
     }
 }
