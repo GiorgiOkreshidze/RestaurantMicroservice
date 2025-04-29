@@ -10,7 +10,7 @@ namespace Restaurant.API.Controllers;
 
 [ApiController]
 [Route("api/reservations")]
-public class ReservationController(IReservationService reservationService) : ControllerBase
+public class ReservationController(IReservationService reservationService, IOrderService orderService) : ControllerBase
 {
     /// <summary>
     /// Gets available tables for a specific date, time, and number of guests.
@@ -145,5 +145,30 @@ public class ReservationController(IReservationService reservationService) : Con
 
         await reservationService.CompleteReservationAsync(id);
         return Ok(new { message = "Reservation was completed successfully" });
+    }
+    
+    /// <summary>
+    /// Adds a dish to an existing order associated with a reservation.
+    /// </summary>
+    /// <param name="reservationId">The ID of the reservation to which the dish will be added.</param>
+    /// <param name="dishId">The ID of the dish to add to the order.</param>
+    /// <returns>A success message indicating the dish was added to the reservation.</returns>
+    /// <response code="200">Dish was added to the reservation successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    [HttpPost("{reservationId}/order/{dishId}")]
+    [Authorize]
+    public async Task<IActionResult> AddDishToOrder(string reservationId, string dishId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+
+        await orderService.AddDishToOrderAsync(reservationId, dishId);
+        return Ok(new { message = "Dish was added to reservation successfully" });
     }
 }

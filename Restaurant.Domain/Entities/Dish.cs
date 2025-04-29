@@ -50,4 +50,7 @@ public class Dish
     [DynamoDBGlobalSecondaryIndexHashKey("GSI1")]
     [DynamoDBProperty("locationId")]
     public string? LocationId { get; set; }
+
+    [DynamoDBProperty("quantity")]
+    public int Quantity { get; set; }
 }
