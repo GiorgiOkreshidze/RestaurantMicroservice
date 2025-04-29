@@ -196,4 +196,28 @@ public class ReservationController(IReservationService reservationService, IOrde
         await orderService.DeleteDishFromOrderAsync(reservationId, dishId);
         return Ok(new { message = "Dish was removed successfully from order" });
     }
+    
+    // <summary>
+    /// Retrieves the list of dishes in an order associated with a specific reservation.
+    /// </summary>
+    /// <param name="reservationId">The ID of the reservation whose order dishes are to be retrieved.</param>
+    /// <returns>A list of dishes in the order.</returns>
+    /// <response code="200">Dishes retrieved successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    [HttpGet("{reservationId}/order/available-dishes")]
+    [Authorize]
+    public async Task<IActionResult> GetDishFromOrder(string reservationId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+        
+        var dishes = await orderService.GetDishesInOrderAsync(reservationId);
+        return Ok(dishes);
+    }
 }
