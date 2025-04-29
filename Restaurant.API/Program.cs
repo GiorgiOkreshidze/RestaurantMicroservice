@@ -5,6 +5,8 @@ using FluentValidation;
 using Restaurant.Application.DTOs.Auth;
 using Restaurant.API.Utilities;
 using Restaurant.Application.DTOs.Aws;
+using Restaurant.Application.DTOs.Reports;
+using Restaurant.Infrastructure.ExternalServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,9 +31,14 @@ builder.Services.Configure<AwsSettings>(options => {
     options.SqsQueueUrl = Environment.GetEnvironmentVariable("SQS_QUEUE_URL") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueUrl), "SQS_QUEUE_URL environment variable is not set");
 });
 
+builder.Services.Configure<ReportSettings>(options => {
+    options.BaseUrl = Environment.GetEnvironmentVariable("BASE_URL") ?? throw new ArgumentNullException(nameof(ReportSettings.BaseUrl), "BASE_URL environment variable is not set");
+});
+
 builder.Services.AddValidatorsFromAssembly(
     typeof(Restaurant.Application.AssemblyMarker).Assembly);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+builder.Services.AddHttpClient<IReportServiceClient, ReportServiceClient>();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddCors(options =>

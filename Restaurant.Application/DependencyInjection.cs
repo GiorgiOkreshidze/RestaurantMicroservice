@@ -22,6 +22,7 @@ namespace Restaurant.Application
             services.AddScoped<IFeedbackFactory, FeedbackFactory>();
             services.AddScoped<IPreOrderService, PreOrderService>();
             services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IReportingService, ReportingService>();
 
             return services;
         }

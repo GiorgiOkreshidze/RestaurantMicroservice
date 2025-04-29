@@ -4,8 +4,10 @@ using Amazon.SQS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Restaurant.Infrastructure.AWS;
+using Restaurant.Infrastructure.ExternalServices;
 using Restaurant.Infrastructure.Interfaces;
 using Restaurant.Infrastructure.Repositories;
+using System.Net.Http;
 
 namespace Restaurant.Infrastructure;
 
