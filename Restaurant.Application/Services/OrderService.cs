@@ -6,20 +6,12 @@ using Restaurant.Infrastructure.Interfaces;
 namespace Restaurant.Application.Services;
 
 public class OrderService(
-    IReservationRepository reservationRepository,
     IDishRepository dishRepository,
     IOrderRepository orderRepository) : IOrderService
 {
     public async Task AddDishToOrderAsync(string reservationId, string dishId)
     {
-        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
-        if (reservation == null)
-            throw new NotFoundException("Reservation", reservationId);
-
-        var dish = await dishRepository.GetDishByIdAsync(dishId);
-        if (dish == null)
-            throw new NotFoundException("Dish", dishId);
-
+        var dish = await GetDishOrThrowAsync(dishId);
         var order = await GetOrCreateOrderAsync(reservationId);
 
         AddOrUpdateDish(order, dish);
@@ -29,6 +21,22 @@ public class OrderService(
             d => d.Quantity);
 
         await orderRepository.SaveAsync(order);
+    }
+
+    public async Task DeleteDishFromOrderAsync(string reservationId, string dishId)
+    {
+        var dish = await GetDishOrThrowAsync(dishId);
+        var order = await GetOrCreateOrderAsync(reservationId);
+        
+        if (RemoveOrDecrementDish(order, dish.Id))
+        {
+            order.TotalPrice = Utils.CalculateTotalPrice(
+                order.Dishes,
+                d => d.Price,
+                d => d.Quantity);
+
+            await orderRepository.SaveAsync(order);
+        }
     }
 
     private async Task<Order> GetOrCreateOrderAsync(string reservationId)
@@ -45,7 +53,7 @@ public class OrderService(
         };
     }
 
-    private void AddOrUpdateDish(Order order, Dish dish)
+    private static void AddOrUpdateDish(Order order, Dish dish)
     {
         var existingDish = order.Dishes.FirstOrDefault(d => d.Id == dish.Id);
         if (existingDish != null)
@@ -64,5 +72,31 @@ public class OrderService(
             ImageUrl = dish.ImageUrl,
             Quantity = 1
         });
+    }
+
+    private async Task<Dish> GetDishOrThrowAsync(string dishId)
+    {
+        var dish = await dishRepository.GetDishByIdAsync(dishId);
+        if (dish == null)
+            throw new NotFoundException("Dish", dishId);
+        return dish;
+    }
+    
+    private static bool RemoveOrDecrementDish(Order order, string dishId)
+    {
+        var existingDish = order.Dishes.FirstOrDefault(d => d.Id == dishId);
+        if (existingDish == null)
+            return false;
+
+        if (existingDish.Quantity > 1)
+        {
+            existingDish.Quantity--;
+        }
+        else
+        {
+            order.Dishes.Remove(existingDish);
+        }
+
+        return true;
     }
 }
