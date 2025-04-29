@@ -46,7 +46,10 @@ public class PreOrderService(
         await ValidateDishItems(request.DishItems);
         
         var existingPreOrder = await GetAndValidateExistingPreOrder(userId, request);
-        var totalPrice = CalculateTotalPrice(request.DishItems);
+        var totalPrice = Utils.CalculateTotalPrice(
+            request.DishItems, 
+            d => d.DishPrice,
+            d => d.DishQuantity);
 
         var preOrder = CreatePreOrderEntity(userId, request, existingPreOrder, totalPrice);
         PopulatePreOrderItems(userId, preOrder, request.DishItems);
@@ -110,12 +113,6 @@ public class PreOrderService(
         var invalidDishIds = dishIds.Except(existingDishes.Select(d => d.Id)).ToList();
         if (invalidDishIds.Any())
             throw new InvalidOperationException($"The following dish IDs do not exist: {string.Join(", ", invalidDishIds)}");
-    }
-    
-    private static decimal CalculateTotalPrice(List<DishItemDto> dishItems)
-    {
-        return dishItems.Sum(item => 
-            decimal.Parse(item.DishPrice.TrimStart('$')) * item.DishQuantity);
     }
     
     private PreOrder CreatePreOrderEntity(string userId, UpsertPreOrderRequest request, PreOrder? existingPreOrder, decimal totalPrice)

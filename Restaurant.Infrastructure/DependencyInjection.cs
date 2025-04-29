@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IWaiterRepository, WaiterRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IPreOrderRepository, PreOrderRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
 
         return services;
     }
