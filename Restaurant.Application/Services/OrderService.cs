@@ -7,7 +7,8 @@ namespace Restaurant.Application.Services;
 
 public class OrderService(
     IDishRepository dishRepository,
-    IOrderRepository orderRepository) : IOrderService
+    IOrderRepository orderRepository,
+    IReservationRepository reservationRepository) : IOrderService
 {
     public async Task AddDishToOrderAsync(string reservationId, string dishId)
     {
@@ -37,6 +38,16 @@ public class OrderService(
 
             await orderRepository.SaveAsync(order);
         }
+    }
+
+    public async Task<List<Dish>> GetDishesInOrderAsync(string reservationId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
+        if (reservation == null)
+            throw new NotFoundException("Reservation", reservationId);
+
+        var order = await orderRepository.GetOrderByReservationIdAsync(reservationId);
+        return order?.Dishes ?? new List<Dish>();
     }
 
     private async Task<Order> GetOrCreateOrderAsync(string reservationId)
