@@ -24,6 +24,7 @@ namespace Restaurant.Application
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IOrderService, OrderService>();
             services.AddScoped<IReportingService, ReportingService>();
+            services.AddScoped<IAnonymousFeedbackService, AnonymousFeedbackService>();
 
             return services;
         }

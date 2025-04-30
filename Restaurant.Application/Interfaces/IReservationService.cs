@@ -17,5 +17,5 @@ public interface IReservationService
 
     Task<ReservationResponseDto> CancelReservationAsync(string reservationId, string userId, string role);
 
-    Task<bool> CompleteReservationAsync(string reservationId);
+    Task<QrCodeResponse> CompleteReservationAsync(string reservationId);
 }

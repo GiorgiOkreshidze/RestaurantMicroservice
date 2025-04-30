@@ -18,6 +18,7 @@ using Microsoft.Extensions.Options;
 using Restaurant.Application.DTOs.Aws;
 using Restaurant.Infrastructure.Repositories;
 using Amazon.DynamoDBv2.Model;
+using QRCoder;
 using Restaurant.Application.DTOs.Reports;
 
 namespace Restaurant.Application.Services;
@@ -30,6 +31,7 @@ public class ReservationService(
     IWaiterRepository waiterRepository,
     IFeedbackRepository feedbackRepository,
     IValidator<FilterParameters> filterValidator,
+    ITokenService tokenService,
     IAmazonSQS amazonSqsClient,
     IOptions<AwsSettings> awsSettings,
     IMapper mapper) : IReservationService
@@ -145,15 +147,40 @@ public class ReservationService(
         return mapper.Map<ReservationResponseDto>(canceledReservation);
     }
     
-    public async Task<bool> CompleteReservationAsync(string reservationId)
+    public async Task<QrCodeResponse> CompleteReservationAsync(string reservationId)
     {
-        var reservation = await GetAndCompleteReservation(reservationId) ?? throw new NotFoundException("Reservation", reservationId);
+        var reservation = await GetAndCompleteReservation(reservationId) 
+                          ?? throw new NotFoundException("Reservation", reservationId);
+        
+        var feedbackToken = tokenService.GenerateAnonymousFeedbackToken(reservationId);
+
+        reservation.FeedbackToken = feedbackToken;
+        await reservationRepository.UpsertReservationAsync(reservation);
+
+        // Todo: change with real url
+        var feedbackUrl = 
+            $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy/api/anonymous-feedback/validate-token?token=${feedbackToken}"; 
+        
+        var qrCodeBase64 = GenerateQrCodeAsync(feedbackUrl);
         
         var report = await BuildReservationReport(reservation);
-        
         await SendEventToSqs("reservation", report);
 
-        return true;
+        return new QrCodeResponse
+        {
+            QrCodeImageBase64 = qrCodeBase64,
+            FeedbackUrl = feedbackUrl,
+        };
+    }
+
+    private static string GenerateQrCodeAsync(string feedbackUrl)
+    {
+        using var qrGenerator = new QRCodeGenerator();
+        var qrCodeData = qrGenerator.CreateQrCode(feedbackUrl, QRCodeGenerator.ECCLevel.Q);
+        using var qrCode = new PngByteQRCode(qrCodeData);
+        var qrCodeBytes = qrCode.GetGraphic(20);
+
+        return Convert.ToBase64String(qrCodeBytes);
     }
 
     private async Task<Reservation> GetAndCompleteReservation(string reservationId)

@@ -72,6 +72,7 @@ namespace Restaurant.Infrastructure.Repositories
             existingFeedback.Rate = newFeedback.Rate;
             existingFeedback.Comment = newFeedback.Comment;
             existingFeedback.TypeDate = $"{newFeedback.Type}#{newFeedback.Date}";
+            existingFeedback.IsAnonymous = newFeedback.IsAnonymous;
 
             await context.SaveAsync(existingFeedback);
         }
