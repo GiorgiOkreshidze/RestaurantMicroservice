@@ -9,5 +9,7 @@ namespace Restaurant.Application.Interfaces
         Task<List<UserDto>> GetAllUsersAsync();
         
         Task UpdatePasswordAsync(string userId, UpdatePasswordRequest request);
+        
+        Task UpdateProfileAsync(string userId, UpdateProfileRequest request);
     }
 }
