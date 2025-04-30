@@ -57,6 +57,9 @@ public class Reservation
     [DynamoDBProperty("createdAt")]
     public required string CreatedAt { get; set; }
 
+    [DynamoDBProperty("feedbackToken")]
+    public string FeedbackToken { get; set; } = string.Empty;
+
     [DynamoDBIgnore] 
     public ClientType? ClientType { get; set; } = Enums.ClientType.CUSTOMER;
     

@@ -42,7 +42,8 @@ public class FeedbackService(
         var userDto = mapper.Map<UserDto>(user);
         var reservationDto = mapper.Map<ReservationDto>(reservation);
 
-        ValidateReservationAndUser(reservation, user, feedbackRequest);
+        ValidateReservation(reservation, feedbackRequest);
+        ValidateUser(reservation, user);
 
         var feedbackDtos = await feedbackFactory.CreateFeedbacksAsync(feedbackRequest, userDto, reservationDto);
 
@@ -53,11 +54,33 @@ public class FeedbackService(
         }
     }
 
-    private void ValidateReservationAndUser(Reservation reservation, User user, CreateFeedbackRequest feedbackRequest)
+    public async Task AddAnonymousFeedbackAsync(CreateFeedbackRequest feedbackRequest, Reservation reservation)
     {
-        if (reservation.UserEmail != user.Email)
-            throw new UnauthorizedException("You are not authorized to add feedback for this reservation");
+        var reservationDto = mapper.Map<ReservationDto>(reservation);
+        
+        ValidateReservation(reservation, feedbackRequest);
+        
+        // Create anonymous user info
+        var anonymousUser = new UserDto
+        {
+           FirstName = "Anonymous",
+           LastName = "Customer",
+           Email = "anonymous@example.com",
+           ImgUrl = ""
+        };
+        
+        var feedbackDtos = await feedbackFactory
+            .CreateFeedbacksAsync(feedbackRequest, anonymousUser, reservationDto);
+        foreach (var feedbackDto in feedbackDtos)
+        {
+            feedbackDto.IsAnonymous = true;
+            var feedbackEntity = mapper.Map<Feedback>(feedbackDto);
+            await feedbackRepository.UpsertFeedbackByReservationAndTypeAsync(feedbackEntity);
+        }
+    }
 
+    private void ValidateReservation(Reservation reservation, CreateFeedbackRequest feedbackRequest)
+    {
         if (reservation.Status != Utils.GetEnumDescription(ReservationStatus.InProgress) &&
             reservation.Status != Utils.GetEnumDescription(ReservationStatus.Finished))
             throw new ConflictException("Reservation should be in status 'In Progress' or 'Finished'");
@@ -75,6 +98,12 @@ public class FeedbackService(
         {
             throw new ConflictException("Service rating must be between 0 and 5");
         }
+    }
+
+    private void ValidateUser(Reservation reservation, User user)
+    {
+        if (reservation.UserEmail != user.Email)
+            throw new UnauthorizedException("You are not authorized to add feedback for this reservation");
     }
 
     private async Task<(List<Feedback>, string?)> GetPaginatedFeedbacks(
@@ -150,7 +179,8 @@ public class FeedbackService(
                 Date = f.Date,
                 Type = f.Type,
                 LocationId = f.LocationId,
-                ReservationId = f.ReservationId
+                ReservationId = f.ReservationId,
+                IsAnonymous = f.IsAnonymous 
             }).ToList(),
             Sort = new FeedbacksSortMetaData
             {

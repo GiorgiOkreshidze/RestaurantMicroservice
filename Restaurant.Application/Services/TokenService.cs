@@ -98,11 +98,63 @@ namespace Restaurant.Application.Services
             await refreshTokenRepository.SaveTokenAsync(refreshToken);
         }
 
+        public string GenerateAnonymousFeedbackToken(string reservationId)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(jwtSettings.Value.Key);
+            var tokenDescriptor = new SecurityTokenDescriptor()
+            {
+                Subject = new ClaimsIdentity(new Claim[]
+                {
+                    new (ClaimTypes.Name, reservationId),
+                    new ("TokenType", "AnonymousFeedback")
+                }),
+                Expires = DateTime.UtcNow.AddDays(7),
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature
+                )
+            };
+            
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+
+        public bool ValidateAnonymousFeedbackToken(string token, out string? reservationId)
+        {
+            reservationId = null;
+
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.UTF8.GetBytes(jwtSettings.Value.Key);
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                reservationId = jwtToken.Claims.First(c => c.Type == "unique_name").Value;
+
+                return jwtToken.Claims.Any(x => x.Type == "TokenType" && x.Value == "AnonymousFeedback");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static string HashToken(string token)
         {
             var bytes = System.Text.Encoding.UTF8.GetBytes(token);
             var hash = System.Security.Cryptography.SHA256.HashData(bytes);
             return Convert.ToBase64String(hash);
         }
+        
+        
     }
 }

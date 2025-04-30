@@ -132,7 +132,7 @@ public class ReservationController(IReservationService reservationService, IOrde
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<ReservationResponseDto>> CompleteReservation(string id)
+    public async Task<ActionResult> CompleteReservation(string id)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -143,8 +143,8 @@ public class ReservationController(IReservationService reservationService, IOrde
         if (role != Role.Waiter.ToString())
             return Unauthorized("You don't have permission to access this resource.");
 
-        await reservationService.CompleteReservationAsync(id);
-        return Ok(new { message = "Reservation was completed successfully" });
+        var qrCodeResponse = await reservationService.CompleteReservationAsync(id);
+        return Ok(qrCodeResponse);
     }
     
     /// <summary>

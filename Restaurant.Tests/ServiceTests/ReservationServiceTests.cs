@@ -29,6 +29,7 @@ public class ReservationServiceTests
     private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
     private Mock<IFeedbackRepository> _feedbackRepository = null!;
     private IReservationService _reservationService = null!;
+    private Mock<ITokenService> _tokenService = null!;
     private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
     private Mock<IAmazonSQS> _sqsClientMock = null!;
     private Mock<IOptions<AwsSettings>> _awsOptionsMock = null!;
@@ -50,9 +51,11 @@ public class ReservationServiceTests
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
         _feedbackRepository = new Mock<IFeedbackRepository>();
+        _tokenService = new Mock<ITokenService>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
         _sqsClientMock = new Mock<IAmazonSQS>();
         _awsOptionsMock = new Mock<IOptions<AwsSettings>>();
+        
         
         var config = new MapperConfiguration(cfg =>
         {
@@ -74,6 +77,7 @@ public class ReservationServiceTests
             _waiterRepositoryMock.Object,
             _feedbackRepository.Object,
             _validatorFilterMock.Object,
+            _tokenService.Object,
             _sqsClientMock.Object,
             _awsOptionsMock.Object,
             _mapper);
@@ -899,6 +903,7 @@ public class ReservationServiceTests
             _waiterRepositoryMock.Object,
             _feedbackRepository.Object,
             _validatorFilterMock.Object,
+            _tokenService.Object,
             _sqsClientMock.Object,
             _awsOptionsMock.Object,
             mapper);
@@ -1138,8 +1143,8 @@ public class ReservationServiceTests
 
     #region CompleteReservation
 
-    [Test]
-public async Task CompleteReservation_ReservationIdCompletedSuccessfully_ReturnsTrue()
+[Test]
+public async Task CompleteReservationAsync_ReservationIdCompletedSuccessfully_ReturnsQrCodeResponse()
 {
     // Arrange
     var reservation = new Reservation
@@ -1173,12 +1178,12 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
         LocationId = "loc-1",
         ImgUrl = "null",
         CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-        
     };
 
     var feedbacks = new List<Feedback>
     {
-        new Feedback { Id = "feed-1",
+        new Feedback { 
+            Id = "feed-1",
             LocationId = "loc-1",
             Type = "SERVICE_QUALITY",
             TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
@@ -1189,8 +1194,10 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
             Date = "2025-04-23T12:00:00Z",
             ReservationId = "res-456",
             LocationIdType = $"loc-1#SERVICE_QUALITY",
-            ReservationIdType = "res-1#SERVICE_QUALITY",},
-        new Feedback() { Id = "feed-2",
+            ReservationIdType = "res-1#SERVICE_QUALITY"
+        },
+        new Feedback { 
+            Id = "feed-2",
             LocationId = "loc-1",
             Type = "SERVICE_QUALITY",
             TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
@@ -1201,9 +1208,12 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
             Date = "2025-04-23T12:00:00Z",
             ReservationId = "res-456",
             LocationIdType = $"loc-1#SERVICE_QUALITY",
-            ReservationIdType = "res-1#SERVICE_QUALITY",}
+            ReservationIdType = "res-1#SERVICE_QUALITY"
+        }
     };
 
+    const string mockToken = "mock-jwt-token";
+    
     _reservationRepositoryMock
         .Setup(r => r.GetReservationByIdAsync(reservation.Id))
         .ReturnsAsync(reservation);
@@ -1219,6 +1229,10 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
     _feedbackRepository
         .Setup(r => r.GetServiceFeedbacks(reservation.Id))
         .ReturnsAsync(feedbacks);
+    
+    _tokenService
+        .Setup(t => t.GenerateAnonymousFeedbackToken(reservation.Id))
+        .Returns(mockToken);
 
     var awsSettings = new AwsSettings { SqsQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue" };
     _awsOptionsMock.Setup(x => x.Value).Returns(awsSettings);
@@ -1231,12 +1245,18 @@ public async Task CompleteReservation_ReservationIdCompletedSuccessfully_Returns
     var result = await _reservationService.CompleteReservationAsync(reservation.Id);
 
     // Assert
-    Assert.That(result, Is.True);
+    Assert.That(result, Is.Not.Null);
+    Assert.That(result.QrCodeImageBase64, Is.Not.Null);
+    Assert.That(result.FeedbackUrl, Is.Not.Null);
+    Assert.That(result.FeedbackUrl, Does.Contain(mockToken));
+    
     _reservationRepositoryMock.Verify(r => r.GetReservationByIdAsync(reservation.Id), Times.Once);
     _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.Is<Reservation>(r => 
-        r.Status == ReservationStatus.Finished.ToString())), Times.Once);
+        r.Status == ReservationStatus.Finished.ToString() && 
+        r.FeedbackToken == mockToken)), Times.AtLeastOnce);
     _userRepositoryMock.Verify(r => r.GetUserByIdAsync(reservation.WaiterId!), Times.Once);
-    _feedbackRepository.Verify(r => r.GetServiceFeedbacks(reservation.Id), Times.Exactly(2));
+    _feedbackRepository.Verify(r => r.GetServiceFeedbacks(reservation.Id), Times.AtLeastOnce);
+    _tokenService.Verify(t => t.GenerateAnonymousFeedbackToken(reservation.Id), Times.Once);
     _sqsClientMock.Verify(s => s.SendMessageAsync(
         It.Is<SendMessageRequest>(req => req.QueueUrl == awsSettings.SqsQueueUrl),
         It.IsAny<CancellationToken>()), Times.Once);

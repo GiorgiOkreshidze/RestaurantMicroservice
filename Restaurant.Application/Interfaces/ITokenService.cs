@@ -17,5 +17,9 @@ namespace Restaurant.Application.Interfaces
         Task RevokeRefreshTokenAsync(string token);
 
         Task SaveRefreshTokenAsync(RefreshToken refreshToken);
+        
+        string GenerateAnonymousFeedbackToken(string reservationId);
+        
+        bool ValidateAnonymousFeedbackToken(string token, out string? reservationId);
     }
 }
