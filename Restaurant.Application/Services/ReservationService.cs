@@ -149,27 +149,35 @@ public class ReservationService(
     
     public async Task<QrCodeResponse> CompleteReservationAsync(string reservationId)
     {
-        var reservation = await GetAndCompleteReservation(reservationId) 
+        var reservation = await GetAndCompleteReservation(reservationId)
                           ?? throw new NotFoundException("Reservation", reservationId);
-        
-        var feedbackToken = tokenService.GenerateAnonymousFeedbackToken(reservationId);
 
-        reservation.FeedbackToken = feedbackToken;
-        await reservationRepository.UpsertReservationAsync(reservation);
-
-        // Todo: change with real url
-        var feedbackUrl = 
-            $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy/api/anonymous-feedback/validate-token?token=${feedbackToken}"; 
-        
-        var qrCodeBase64 = GenerateQrCodeAsync(feedbackUrl);
-        
         var report = await BuildReservationReport(reservation);
         await SendEventToSqs("reservation", report);
 
+        if (reservation.ClientType == ClientType.VISITOR)
+        {
+            var feedbackToken = tokenService.GenerateAnonymousFeedbackToken(reservationId);
+        
+            reservation.FeedbackToken = feedbackToken;
+            await reservationRepository.UpsertReservationAsync(reservation);
+        
+            // Todo: change with real url
+            var feedbackUrl = $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy/api/anonymous-feedback/validate-token?token=${feedbackToken}";
+            var qrCodeBase64 = GenerateQrCodeAsync(feedbackUrl);
+        
+            return new QrCodeResponse
+            {
+                QrCodeImageBase64 = qrCodeBase64,
+                FeedbackUrl = feedbackUrl
+            };
+        }
+    
+        // Return empty response for non-VISITOR clients
         return new QrCodeResponse
         {
-            QrCodeImageBase64 = qrCodeBase64,
-            FeedbackUrl = feedbackUrl,
+            QrCodeImageBase64 = string.Empty,
+            FeedbackUrl = string.Empty
         };
     }
 
