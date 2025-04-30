@@ -69,5 +69,10 @@ namespace Restaurant.Infrastructure.Repositories
                 await context.SaveAsync(user);
             }
         }
+        
+        public async Task UpdateProfileAsync(User user)
+        {
+            await context.SaveAsync(user);
+        }
     }
 }

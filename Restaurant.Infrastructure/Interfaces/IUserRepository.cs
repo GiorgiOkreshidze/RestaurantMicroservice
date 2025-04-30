@@ -15,5 +15,7 @@ namespace Restaurant.Infrastructure.Interfaces
         Task<bool> DoesEmailExistAsync(string email);
         
         Task UpdatePasswordAsync(string userId, string newPasswordHash);
+        
+        Task UpdateProfileAsync(User user);
     }
 }
