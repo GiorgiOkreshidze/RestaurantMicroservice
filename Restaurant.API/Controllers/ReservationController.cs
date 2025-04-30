@@ -144,7 +144,18 @@ public class ReservationController(IReservationService reservationService, IOrde
             return Unauthorized("You don't have permission to access this resource.");
 
         var qrCodeResponse = await reservationService.CompleteReservationAsync(id);
-        return Ok(qrCodeResponse);
+        
+        if (!string.IsNullOrEmpty(qrCodeResponse.QrCodeImageBase64))
+        {
+            return Ok(new
+            {
+                message = "Reservation completed successfully",
+                qrCodeData = qrCodeResponse
+            });
+        } 
+        
+        // For non-VISITOR clients
+        return Ok(new { message = "Reservation completed successfully" });
     }
     
     /// <summary>
