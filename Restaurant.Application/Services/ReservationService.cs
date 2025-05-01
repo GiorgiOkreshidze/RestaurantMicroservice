@@ -219,6 +219,7 @@ public class ReservationService(
         return new ReportDto
         {
             Date = reservation.Date,
+            LocationId = reservation.LocationId,
             Location = reservation.LocationAddress,
             Waiter = waiter.FullName,
             WaiterEmail = waiter.Email,
