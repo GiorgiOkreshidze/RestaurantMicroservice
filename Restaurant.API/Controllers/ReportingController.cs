@@ -17,7 +17,7 @@ namespace Restaurant.API.Controllers
         /// <returns>A success message upon successfully sending the report.</returns>
         /// <response code="200">Report email sent successfully</response>
         /// <response code="500">If report sending fails due to external service issues</response>
-        [HttpPost("send-report")]
+        [HttpPost("send")]
         public async Task<IActionResult> CreateClientReservations()
         {
             await reportingService.SendReportEmailAsync();
