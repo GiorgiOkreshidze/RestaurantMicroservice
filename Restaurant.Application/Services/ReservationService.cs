@@ -161,9 +161,8 @@ public class ReservationService(
         
             reservation.FeedbackToken = feedbackToken;
             await reservationRepository.UpsertReservationAsync(reservation);
-        
-            // Todo: change with real url
-            var feedbackUrl = $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy/api/anonymous-feedback/validate-token?token=${feedbackToken}";
+            
+            var feedbackUrl = $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy?anonymous-feedback-token={feedbackToken}";
             var qrCodeBase64 = GenerateQrCodeAsync(feedbackUrl);
         
             return new QrCodeResponse
