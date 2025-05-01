@@ -1,10 +1,15 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.SQS;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Restaurant.Infrastructure.AWS;
+using Restaurant.Infrastructure.ExternalServices;
 using Restaurant.Infrastructure.Interfaces;
 using Restaurant.Infrastructure.Repositories;
+using Restaurant.Infrastructure.Services;
+using System.Net.Http;
+using Amazon.S3;
 
 namespace Restaurant.Infrastructure;
 
@@ -24,7 +29,12 @@ public static class DependencyInjection
         services.AddSingleton<IAmazonDynamoDB>(_ => DynamoDbFactory.CreateDynamoDbClient(credentials));
         services.AddSingleton<IDynamoDBContext>(sp =>
             DynamoDbFactory.CreateDynamoDbContext(sp.GetRequiredService<IAmazonDynamoDB>()));
-
+        
+        services.AddSingleton<IAmazonSQS>(_ => SqsFactory.CreateSqsClient(credentials));
+        services.AddSingleton<IAmazonS3>(_ => S3Factory.CreateS3Client(credentials));
+        
+        // Register the new ImageService
+        services.AddScoped<IImageService, ImageService>();
         services.AddScoped<ILocationRepository, LocationRepository>();
         services.AddScoped<IDishRepository, DishRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
@@ -34,6 +44,8 @@ public static class DependencyInjection
         services.AddScoped<ITableRepository, TableRepository>();
         services.AddScoped<IWaiterRepository, WaiterRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+        services.AddScoped<IPreOrderRepository, PreOrderRepository>();
+        services.AddScoped<IOrderRepository, OrderRepository>();
 
         return services;
     }

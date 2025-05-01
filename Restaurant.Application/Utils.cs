@@ -34,4 +34,10 @@ public static class Utils
         var attribute = Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) as DescriptionAttribute;
         return attribute == null ? value.ToString() : attribute.Description;
     }
+    
+    public static decimal CalculateTotalPrice<T>(IEnumerable<T> items, Func<T, string> priceSelector, Func<T, int> quantitySelector)
+    {
+        return items.Sum(item =>
+            decimal.Parse(priceSelector(item).TrimStart('$')) * quantitySelector(item));
+    }
 }

@@ -1,11 +1,6 @@
-using System.ComponentModel.DataAnnotations;
-using System.Data;
 using System.Globalization;
-using Amazon.DynamoDBv2.Model;
-using Amazon.Runtime.Internal;
 using AutoMapper;
 using FluentValidation;
-using Restaurant.Application.DTOs.Auth;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
@@ -16,6 +11,15 @@ using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
+using Amazon.SQS.Model;
+using Amazon.SQS;
+using System.Text.Json;
+using Microsoft.Extensions.Options;
+using Restaurant.Application.DTOs.Aws;
+using Restaurant.Infrastructure.Repositories;
+using Amazon.DynamoDBv2.Model;
+using QRCoder;
+using Restaurant.Application.DTOs.Reports;
 
 namespace Restaurant.Application.Services;
 
@@ -25,7 +29,11 @@ public class ReservationService(
     IUserRepository userRepository,
     ITableRepository tableRepository,
     IWaiterRepository waiterRepository,
+    IFeedbackRepository feedbackRepository,
     IValidator<FilterParameters> filterValidator,
+    ITokenService tokenService,
+    IAmazonSQS amazonSqsClient,
+    IOptions<AwsSettings> awsSettings,
     IMapper mapper) : IReservationService
 {
     public async Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters)
@@ -137,6 +145,126 @@ public class ReservationService(
         var canceledReservation = await reservationRepository.CancelReservationAsync(reservationId);
 
         return mapper.Map<ReservationResponseDto>(canceledReservation);
+    }
+    
+    public async Task<QrCodeResponse> CompleteReservationAsync(string reservationId)
+    {
+        var reservation = await GetAndCompleteReservation(reservationId)
+                          ?? throw new NotFoundException("Reservation", reservationId);
+
+        var report = await BuildReservationReport(reservation);
+        await SendEventToSqs("reservation", report);
+
+        if (reservation.ClientType == ClientType.VISITOR)
+        {
+            var feedbackToken = tokenService.GenerateAnonymousFeedbackToken(reservationId);
+        
+            reservation.FeedbackToken = feedbackToken;
+            await reservationRepository.UpsertReservationAsync(reservation);
+            
+            var feedbackUrl = $"https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy?anonymous-feedback-token={feedbackToken}";
+            var qrCodeBase64 = GenerateQrCodeAsync(feedbackUrl);
+        
+            return new QrCodeResponse
+            {
+                QrCodeImageBase64 = qrCodeBase64,
+                FeedbackUrl = feedbackUrl
+            };
+        }
+    
+        // Return empty response for non-VISITOR clients
+        return new QrCodeResponse
+        {
+            QrCodeImageBase64 = string.Empty,
+            FeedbackUrl = string.Empty
+        };
+    }
+
+    private static string GenerateQrCodeAsync(string feedbackUrl)
+    {
+        using var qrGenerator = new QRCodeGenerator();
+        var qrCodeData = qrGenerator.CreateQrCode(feedbackUrl, QRCodeGenerator.ECCLevel.Q);
+        using var qrCode = new PngByteQRCode(qrCodeData);
+        var qrCodeBytes = qrCode.GetGraphic(20);
+
+        return Convert.ToBase64String(qrCodeBytes);
+    }
+
+    private async Task<Reservation> GetAndCompleteReservation(string reservationId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
+        if (reservation == null)
+        {
+            throw new NotFoundException("Reservation", reservationId);
+        }
+        
+        if (reservation.Status == ReservationStatus.Finished.ToString())
+        {
+            throw new ConflictException("The reservation has already been completed.");
+        }
+
+        reservation.Status = ReservationStatus.Finished.ToString();
+        return await reservationRepository.UpsertReservationAsync(reservation);
+    }
+    
+    private async Task<ReportDto> BuildReservationReport(Reservation reservation)
+    {
+        // Calculate hours worked
+        var hoursWorked = CalculateHoursWorked(reservation.TimeFrom, reservation.TimeTo);
+    
+        // Get waiter information
+        var waiter = await GetWaiterInfo(reservation.WaiterId!);
+    
+        // Build the report
+        return new ReportDto
+        {
+            Date = reservation.Date,
+            LocationId = reservation.LocationId,
+            Location = reservation.LocationAddress,
+            Waiter = waiter.FullName,
+            WaiterEmail = waiter.Email,
+            HoursWorked = hoursWorked,
+            AverageServiceFeedback = await GetAverageServiceFeedback(reservation.Id),
+            MinimumServiceFeedback = await GetMinimumServiceFeedback(reservation.Id)
+        };
+    }
+    
+    private static decimal CalculateHoursWorked(string timeFrom, string timeTo)
+    {
+        var fromTime = TimeSpan.Parse(timeFrom);
+        var toTime = TimeSpan.Parse(timeTo);
+        return (decimal)(toTime - fromTime).TotalHours;
+    }
+    
+    private async Task<(string Email, string FullName)> GetWaiterInfo(string waiterId)
+    {
+        var user = await userRepository.GetUserByIdAsync(waiterId) 
+                   ?? throw new NotFoundException("Waiter", waiterId);
+    
+        return (user.Email, $"{user.FirstName} {user.LastName}");
+    }
+    
+    private async Task<int> GetMinimumServiceFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetServiceFeedbacks(id);
+
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
+
+        return feedbacks!.Min(f => f.Rate);
+    }
+
+    private async Task<double> GetAverageServiceFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetServiceFeedbacks(id);
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
+
+        return feedbacks!.Average(f => f.Rate);
     }
 
     #region Helper Methods For Reservation
@@ -361,6 +489,30 @@ public class ReservationService(
             }
         }
     }
+    
+    private async Task SendEventToSqs<T>(string eventType, T payload)
+    {
+        try
+        {
+            var messageBody = JsonSerializer.Serialize(new
+            {
+                eventType,
+                payload
+            });
+    
+            var sendMessageRequest = new SendMessageRequest
+            {
+                QueueUrl = awsSettings.Value.SqsQueueUrl,
+                MessageBody = messageBody
+            };
+    
+            await amazonSqsClient.SendMessageAsync(sendMessageRequest);
+        }
+        catch (AmazonSQSException ex)
+        {
+            throw new ConflictException($"Error communicating with SQS: {ex.Message}");
+        }
+    } 
     #endregion
 
     #region Helper Methods For Available Tables

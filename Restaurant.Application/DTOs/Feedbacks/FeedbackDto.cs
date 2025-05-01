@@ -11,4 +11,5 @@ public class FeedbackDto
     public required string Type { get; set; }
     public required string LocationId { get; set; }
     public required string ReservationId { get; set; }
+    public bool IsAnonymous { get; set; }
 }

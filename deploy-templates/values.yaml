@@ -153,3 +153,13 @@ env:
         secretKeyRef:
           name: run7team2-jwt-secret
           key: jwt-refresh-token-expiry-days
+    - name: SQS_QUEUE_URL
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-aws-sqs-secret
+          key: aws-sqs-queue-url
+    - name: BASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-reports-secret
+          key: be-reporting-url
