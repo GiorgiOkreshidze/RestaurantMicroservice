@@ -534,5 +534,267 @@ namespace Restaurant.Tests.ServiceTests
             // Act & Assert
             Assert.ThrowsAsync<ConflictException>(() => _feedbackService.AddFeedbackAsync(request, "user-123"));
         }
+        
+        [Test]
+public async Task AddAnonymousFeedbackAsync_ValidData_UpsertFeedbacksWithAnonymousFlag()
+{
+    // Arrange
+    var request = new CreateFeedbackRequest
+    {
+        ReservationId = "res-123",
+        ServiceRating = "5",
+        CuisineRating = "4",
+        ServiceComment = "Great service!",
+        CuisineComment = "Food was excellent!"
+    };
+    
+    var reservation = new Reservation
+    {
+        Id = "res-123",
+        Date = "2023-05-01",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        TableId = "table-1",
+        LocationAddress = "address",
+        UserEmail = "user@example.com",
+        GuestsNumber = "1",
+        LocationId = "loc-1",
+        PreOrder = "not implemented",
+        Status = "In Progress",
+        TableCapacity = "3",
+        TableNumber = "5",
+        TimeSlot = "13:30 - 15:00",
+        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+    };
+    
+    var feedbacks = new List<FeedbackDto>
+    {
+        new()
+        {
+            Id = "feedback-service-1",
+            Rate = 5,
+            Comment = "Great service!",
+            Type = "SERVICE_QUALITY",
+            LocationId = reservation.LocationId,
+            ReservationId = reservation.Id,
+            UserName = "",
+            UserAvatarUrl = "",
+            Date = ""
+        },
+        new()
+        {
+            Id = "feedback-cuisine-1",
+            Rate = 4,
+            Comment = "Food was excellent!",
+            Type = "CUISINE_EXPERIENCE",
+            LocationId = reservation.LocationId,
+            ReservationId = reservation.Id,
+            UserName = "",
+            UserAvatarUrl = "",
+            Date = ""
+        }
+    };
+    
+    _feedbackFactoryMock.Setup(f => f.CreateFeedbacksAsync(
+            It.IsAny<CreateFeedbackRequest>(), 
+            It.Is<UserDto>(u => u.FirstName == "Anonymous" && u.LastName == "Customer"), 
+            It.IsAny<ReservationDto>()))
+        .ReturnsAsync(feedbacks.ToArray());
+
+    // Act
+    await _feedbackService.AddAnonymousFeedbackAsync(request, reservation);
+
+    // Assert
+    _feedbackRepositoryMock.Verify(f => f.UpsertFeedbackByReservationAndTypeAsync(It.Is<Feedback>(
+        fb => fb.Id == "feedback-service-1" && fb.IsAnonymous == true)), Times.Once);
+    _feedbackRepositoryMock.Verify(f => f.UpsertFeedbackByReservationAndTypeAsync(It.Is<Feedback>(
+        fb => fb.Id == "feedback-cuisine-1" && fb.IsAnonymous == true)), Times.Once);
+}
+
+[Test]
+public void AddAnonymousFeedbackAsync_InvalidReservationStatus_ThrowsConflictException()
+{
+    // Arrange
+    var request = new CreateFeedbackRequest
+    {
+        ReservationId = "res-123",
+        ServiceRating = "5",
+        CuisineRating = "4"
+    };
+    
+    var reservation = new Reservation
+    {
+        Id = "res-123",
+        Status = "Created", // Invalid status
+        LocationId = "loc-1",
+        UserEmail = "user@example.com",
+        Date = "2023-05-01",
+        GuestsNumber = "1",
+        LocationAddress = "address",
+        PreOrder = "not implemented",
+        TableId = "table-1",
+        TableCapacity = "3",    
+        TableNumber = "5",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        TimeSlot = "13:30 - 15:00",
+        CreatedAt = "2023-05-01T12:00:00Z"
+    };
+
+    // Act & Assert
+    var ex = Assert.ThrowsAsync<ConflictException>(() => 
+        _feedbackService.AddAnonymousFeedbackAsync(request, reservation));
+    
+    Assert.That(ex?.Message, Is.EqualTo("Reservation should be in status 'In Progress' or 'Finished'"));
+    _feedbackFactoryMock.Verify(f => f.CreateFeedbacksAsync(
+        It.IsAny<CreateFeedbackRequest>(), 
+        It.IsAny<UserDto>(), 
+        It.IsAny<ReservationDto>()), Times.Never);
+}
+
+[Test]
+public void AddAnonymousFeedbackAsync_InvalidCuisineRating_ThrowsConflictException()
+{
+    // Arrange
+    var request = new CreateFeedbackRequest
+    {
+        ReservationId = "res-123",
+        ServiceRating = "4",
+        CuisineRating = "6" // Invalid rating value
+    };
+    
+    var reservation = new Reservation
+    {
+        Id = "res-123",
+        Status = "In Progress",
+        LocationId = "loc-1",
+        UserEmail = "user@example.com",
+        Date = "2023-05-01",
+        GuestsNumber = "1",
+        LocationAddress = "address",
+        PreOrder = "not implemented",
+        TableId = "table-1",
+        TableCapacity = "3",
+        TableNumber = "5",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        TimeSlot = "13:30 - 15:00",
+        CreatedAt = "2023-05-01T12:00:00Z"
+    };
+
+    // Act & Assert
+    var ex = Assert.ThrowsAsync<ConflictException>(() => 
+        _feedbackService.AddAnonymousFeedbackAsync(request, reservation));
+    
+    Assert.That(ex?.Message, Is.EqualTo("Cuisine rating must be between 0 and 5"));
+    _feedbackFactoryMock.Verify(f => f.CreateFeedbacksAsync(
+        It.IsAny<CreateFeedbackRequest>(), 
+        It.IsAny<UserDto>(), 
+        It.IsAny<ReservationDto>()), Times.Never);
+}
+
+[Test]
+public void AddAnonymousFeedbackAsync_InvalidServiceRating_ThrowsConflictException()
+{
+    // Arrange
+    var request = new CreateFeedbackRequest
+    {
+        ReservationId = "res-123",
+        ServiceRating = "-1", // Invalid rating value
+        CuisineRating = "4"
+    };
+    
+    var reservation = new Reservation
+    {
+        Id = "res-123",
+        Status = "Finished",
+        LocationId = "loc-1",
+        UserEmail = "user@example.com",
+        Date = "2023-05-01",
+        GuestsNumber = "1",
+        LocationAddress = "address",
+        PreOrder = "not implemented",
+        TableId = "table-1",
+        TableCapacity = "3",
+        TableNumber = "5",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        TimeSlot = "13:30 - 15:00",
+        CreatedAt = "2023-05-01T12:00:00Z"
+    };
+
+    // Act & Assert
+    var ex = Assert.ThrowsAsync<ConflictException>(() => 
+        _feedbackService.AddAnonymousFeedbackAsync(request, reservation));
+    
+    Assert.That(ex?.Message, Is.EqualTo("Service rating must be between 0 and 5"));
+    _feedbackFactoryMock.Verify(f => f.CreateFeedbacksAsync(
+        It.IsAny<CreateFeedbackRequest>(), 
+        It.IsAny<UserDto>(), 
+        It.IsAny<ReservationDto>()), Times.Never);
+}
+
+[Test]
+public async Task AddAnonymousFeedbackAsync_UsesCorrectAnonymousData()
+{
+    // Arrange
+    var request = new CreateFeedbackRequest
+    {
+        ReservationId = "res-123",
+        ServiceRating = "5",
+        CuisineRating = "4"
+    };
+    
+    var reservation = new Reservation
+    {
+        Id = "res-123",
+        Status = "In Progress",
+        LocationId = "loc-1",
+        UserEmail = "user@example.com",
+        Date = "2023-05-01",
+        GuestsNumber = "1",
+        LocationAddress = "address",
+        PreOrder = "not implemented",
+        TableId = "table-1",
+        TableCapacity = "3",
+        TableNumber = "5",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        TimeSlot = "13:30 - 15:00",
+        CreatedAt = "2023-05-01T12:00:00Z"
+    };
+    
+    UserDto capturedUser = null;
+    
+    _feedbackFactoryMock
+        .Setup(f => f.CreateFeedbacksAsync(
+            It.IsAny<CreateFeedbackRequest>(),
+            It.IsAny<UserDto>(),
+            It.IsAny<ReservationDto>()))
+        .Callback<CreateFeedbackRequest, UserDto, ReservationDto>((_, user, _) => capturedUser = user)
+        .ReturnsAsync(new[] { new FeedbackDto
+            {
+                Id = "feedback-1",
+                Rate = 0,
+                Comment = "",
+                UserName = "Anonymous Customer",
+                UserAvatarUrl = "",
+                Date = "",
+                Type = "",
+                LocationId = "",
+                ReservationId = ""
+            }
+        });
+
+    // Act
+    await _feedbackService.AddAnonymousFeedbackAsync(request, reservation);
+
+    // Assert
+    Assert.That(capturedUser, Is.Not.Null);
+    Assert.That(capturedUser?.FirstName, Is.EqualTo("Anonymous"));
+    Assert.That(capturedUser?.LastName, Is.EqualTo("Customer"));
+    Assert.That(capturedUser?.Email, Is.EqualTo("anonymous@example.com"));
+    Assert.That(capturedUser?.ImgUrl, Is.EqualTo(""));
+}
     }
 }

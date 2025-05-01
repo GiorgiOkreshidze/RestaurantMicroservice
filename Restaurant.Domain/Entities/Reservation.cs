@@ -23,7 +23,7 @@ public class Reservation
 
     [DynamoDBProperty("preOrder")]
     public required string PreOrder { get; set; }
-    
+
     [DynamoDBProperty("status")]
     public required string Status { get; set; }
 
@@ -56,6 +56,9 @@ public class Reservation
 
     [DynamoDBProperty("createdAt")]
     public required string CreatedAt { get; set; }
+
+    [DynamoDBProperty("feedbackToken")]
+    public string FeedbackToken { get; set; } = string.Empty;
 
     [DynamoDBIgnore] 
     public ClientType? ClientType { get; set; } = Enums.ClientType.CUSTOMER;

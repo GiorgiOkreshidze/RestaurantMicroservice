@@ -72,6 +72,7 @@ namespace Restaurant.Infrastructure.Repositories
             existingFeedback.Rate = newFeedback.Rate;
             existingFeedback.Comment = newFeedback.Comment;
             existingFeedback.TypeDate = $"{newFeedback.Type}#{newFeedback.Date}";
+            existingFeedback.IsAnonymous = newFeedback.IsAnonymous;
 
             await context.SaveAsync(existingFeedback);
         }
@@ -123,6 +124,20 @@ namespace Restaurant.Infrastructure.Repositories
             }
 
             return config;
+        }
+
+        public async Task<IEnumerable<Feedback>> GetServiceFeedbacks(string reservationId)
+        {
+            var key = $"{reservationId}#SERVICE_QUALITY";
+
+            var queryConfig = new DynamoDBOperationConfig
+            {
+                IndexName = "ReservationTypeIndex"
+            };
+
+            var result = await context.QueryAsync<Feedback>(key, queryConfig).GetRemainingAsync();
+
+            return result;
         }
     }
 }

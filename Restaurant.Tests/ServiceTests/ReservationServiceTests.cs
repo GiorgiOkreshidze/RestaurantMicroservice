@@ -1,9 +1,12 @@
 using System.Globalization;
-using Amazon.DynamoDBv2.Model;
+using Amazon.SQS;
+using Amazon.SQS.Model;
 using AutoMapper;
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
+using Restaurant.Application.DTOs.Aws;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
@@ -24,8 +27,12 @@ public class ReservationServiceTests
     private Mock<IUserRepository> _userRepositoryMock = null!;
     private Mock<ITableRepository> _tableRepositoryMock = null!;
     private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
+    private Mock<IFeedbackRepository> _feedbackRepository = null!;
     private IReservationService _reservationService = null!;
+    private Mock<ITokenService> _tokenService = null!;
     private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
+    private Mock<IAmazonSQS> _sqsClientMock = null!;
+    private Mock<IOptions<AwsSettings>> _awsOptionsMock = null!;
     private IMapper _mapper = null!;
     
     private ClientReservationRequest _request = null!;
@@ -43,7 +50,12 @@ public class ReservationServiceTests
         _userRepositoryMock = new Mock<IUserRepository>();
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
+        _feedbackRepository = new Mock<IFeedbackRepository>();
+        _tokenService = new Mock<ITokenService>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
+        _sqsClientMock = new Mock<IAmazonSQS>();
+        _awsOptionsMock = new Mock<IOptions<AwsSettings>>();
+        
         
         var config = new MapperConfiguration(cfg =>
         {
@@ -63,7 +75,11 @@ public class ReservationServiceTests
             _userRepositoryMock.Object,
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
+            _feedbackRepository.Object,
             _validatorFilterMock.Object,
+            _tokenService.Object,
+            _sqsClientMock.Object,
+            _awsOptionsMock.Object,
             _mapper);
         
         _request = new ClientReservationRequest
@@ -885,7 +901,11 @@ public class ReservationServiceTests
             _userRepositoryMock.Object,
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
+            _feedbackRepository.Object,
             _validatorFilterMock.Object,
+            _tokenService.Object,
+            _sqsClientMock.Object,
+            _awsOptionsMock.Object,
             mapper);
 
         // Act
@@ -1119,5 +1139,187 @@ public class ReservationServiceTests
         Assert.That(exception?.Message, Does.Contain("You can only cancel your own reservations"));
         _reservationRepositoryMock.Verify(r => r.CancelReservationAsync(It.IsAny<string>()), Times.Never);
     }
+    #endregion
+
+    #region CompleteReservation
+
+[Test]
+public async Task CompleteReservationAsync_ReservationIdCompletedSuccessfully_ReturnsQrCodeResponse()
+{
+    // Arrange
+    var reservation = new Reservation
+    {
+        Id = "res-1",
+        Date = "2023-05-01",
+        TimeFrom = "13:30",
+        TimeTo = "15:00",
+        WaiterId = "waiter-1",
+        Status = "Reserved",
+        LocationAddress = "Main Street 123",
+        GuestsNumber = "3",
+        LocationId = "loc-1",
+        PreOrder = "Not implemented",
+        TableId = "table-2",
+        TableCapacity = "6",
+        TableNumber = "T2",
+        TimeSlot = "18:00 - 20:00",
+        UserEmail = "userEmail",
+        UserInfo = "John Doe",
+        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        ClientTypeString = "VISITOR"
+    };
+
+    var waiter = new User
+    {
+        Id = "waiter-1",
+        Email = "waiter@example.com",
+        FirstName = "John",
+        LastName = "Doe",
+        LocationId = "loc-1",
+        ImgUrl = "null",
+        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+    };
+
+    var feedbacks = new List<Feedback>
+    {
+        new Feedback { 
+            Id = "feed-1",
+            LocationId = "loc-1",
+            Type = "SERVICE_QUALITY",
+            TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
+            Rate = 3,
+            Comment = "EXCELLENT!",
+            UserName = "Joe Smith",
+            UserAvatarUrl = "https://example.com/avatar2.jpg",
+            Date = "2025-04-23T12:00:00Z",
+            ReservationId = "res-456",
+            LocationIdType = $"loc-1#SERVICE_QUALITY",
+            ReservationIdType = "res-1#SERVICE_QUALITY"
+        },
+        new Feedback { 
+            Id = "feed-2",
+            LocationId = "loc-1",
+            Type = "SERVICE_QUALITY",
+            TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
+            Rate = 4,
+            Comment = "EXCELLENT!",
+            UserName = "Jane Smith",
+            UserAvatarUrl = "https://example.com/avatar2.jpg",
+            Date = "2025-04-23T12:00:00Z",
+            ReservationId = "res-456",
+            LocationIdType = $"loc-1#SERVICE_QUALITY",
+            ReservationIdType = "res-1#SERVICE_QUALITY"
+        }
+    };
+
+    const string mockToken = "mock-jwt-token";
+    
+    _reservationRepositoryMock
+        .Setup(r => r.GetReservationByIdAsync(reservation.Id))
+        .ReturnsAsync(reservation);
+
+    _reservationRepositoryMock
+        .Setup(r => r.UpsertReservationAsync(It.IsAny<Reservation>()))
+        .ReturnsAsync(reservation);
+
+    _userRepositoryMock
+        .Setup(r => r.GetUserByIdAsync(reservation.WaiterId!))
+        .ReturnsAsync(waiter);
+
+    _feedbackRepository
+        .Setup(r => r.GetServiceFeedbacks(reservation.Id))
+        .ReturnsAsync(feedbacks);
+    
+    _tokenService
+        .Setup(t => t.GenerateAnonymousFeedbackToken(reservation.Id))
+        .Returns(mockToken);
+
+    var awsSettings = new AwsSettings { SqsQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue" };
+    _awsOptionsMock.Setup(x => x.Value).Returns(awsSettings);
+
+    _sqsClientMock
+        .Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+        .ReturnsAsync(new SendMessageResponse { MessageId = "test-message-id" });
+
+    // Act
+    var result = await _reservationService.CompleteReservationAsync(reservation.Id);
+
+    // Assert
+    Assert.That(result, Is.Not.Null);
+    Assert.That(result.QrCodeImageBase64, Is.Not.Null);
+    Assert.That(result.FeedbackUrl, Is.Not.Null);
+    Assert.That(result.FeedbackUrl, Does.Contain(mockToken));
+    
+    _reservationRepositoryMock.Verify(r => r.GetReservationByIdAsync(reservation.Id), Times.Once);
+    _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.Is<Reservation>(r => 
+        r.Status == ReservationStatus.Finished.ToString() && 
+        r.FeedbackToken == mockToken)), Times.AtLeastOnce);
+    _userRepositoryMock.Verify(r => r.GetUserByIdAsync(reservation.WaiterId!), Times.Once);
+    _feedbackRepository.Verify(r => r.GetServiceFeedbacks(reservation.Id), Times.AtLeastOnce);
+    _tokenService.Verify(t => t.GenerateAnonymousFeedbackToken(reservation.Id), Times.Once);
+    _sqsClientMock.Verify(s => s.SendMessageAsync(
+        It.Is<SendMessageRequest>(req => req.QueueUrl == awsSettings.SqsQueueUrl),
+        It.IsAny<CancellationToken>()), Times.Once);
+}
+    
+    [Test]
+    public void CompleteReservation_ReservationIsNull_ThrowsNotFoundException()
+    {
+        // Arrange
+        var invalidReservationId = "invalid-reservation-id";
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(invalidReservationId))
+            .ReturnsAsync((Reservation?)null);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<NotFoundException>(async () =>
+            await _reservationService.CompleteReservationAsync(invalidReservationId));
+
+        Assert.That(ex?.Message, Is.EqualTo($"The Reservation with the key '{invalidReservationId}' was not found."));
+    }
+
+    [Test]
+    public void CompleteReservation_AlreadyFinishedReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservation = new Reservation
+        {
+            Id = "res-finished",
+            Date = "2023-05-01",
+            TimeFrom = "13:30",
+            TimeTo = "15:00",
+            WaiterId = "waiter-1",
+            Status = ReservationStatus.Finished.ToString(), // Already finished
+            LocationAddress = "Main Street 123",
+            GuestsNumber = "3",
+            LocationId = "loc-1",
+            PreOrder = "Not implemented",
+            TableId = "table-2",
+            TableCapacity = "6",
+            TableNumber = "T2",
+            TimeSlot = "13:30 - 15:00",
+            UserEmail = "userEmail",
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "VISITOR"
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservation.Id))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<ConflictException>(async () =>
+            await _reservationService.CompleteReservationAsync(reservation.Id));
+
+        Assert.That(ex?.Message, Is.EqualTo("The reservation has already been completed."));
+        
+        // Verify that UpsertReservationAsync was not called
+        _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.IsAny<Reservation>()), Times.Never);
+        // Verify that SendMessageAsync was not called
+        _sqsClientMock.Verify(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     #endregion
 }

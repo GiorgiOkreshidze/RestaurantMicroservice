@@ -4,6 +4,9 @@ using Restaurant.API.Middleware;
 using FluentValidation;
 using Restaurant.Application.DTOs.Auth;
 using Restaurant.API.Utilities;
+using Restaurant.Application.DTOs.Aws;
+using Restaurant.Application.DTOs.Reports;
+using Restaurant.Infrastructure.ExternalServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,16 +27,25 @@ builder.Services.Configure<JwtSettings>(options => {
         options.RefreshTokenExpiryInDays = refreshExpiry;
 });
 
+builder.Services.Configure<AwsSettings>(options => {
+    options.SqsQueueUrl = Environment.GetEnvironmentVariable("SQS_QUEUE_URL") ?? throw new ArgumentNullException(nameof(AwsSettings.SqsQueueUrl), "SQS_QUEUE_URL environment variable is not set");
+});
+
+builder.Services.Configure<ReportSettings>(options => {
+    options.BaseUrl = Environment.GetEnvironmentVariable("BASE_URL") ?? throw new ArgumentNullException(nameof(ReportSettings.BaseUrl), "BASE_URL environment variable is not set");
+});
+
 builder.Services.AddValidatorsFromAssembly(
     typeof(Restaurant.Application.AssemblyMarker).Assembly);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+builder.Services.AddHttpClient<IReportServiceClient, ReportServiceClient>();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(builder =>
     {
-        builder.WithOrigins("http://localhost:5173") // Allow requests from this origin
+        builder.WithOrigins("http://localhost:5173", "https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy") // Allow requests from this origin
                .AllowAnyHeader()
                .AllowAnyMethod()
                .AllowCredentials();

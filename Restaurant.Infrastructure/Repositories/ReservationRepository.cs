@@ -33,6 +33,7 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
             existingReservation.UserEmail = reservation.UserEmail;
             existingReservation.ClientType = reservation.ClientType;
             existingReservation.TableCapacity = reservation.TableCapacity;
+            existingReservation.FeedbackToken = reservation.FeedbackToken;
 
             await context.SaveAsync(existingReservation);
         }

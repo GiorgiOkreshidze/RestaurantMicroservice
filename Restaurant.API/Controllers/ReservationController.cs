@@ -1,16 +1,16 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Restaurant.API.Models;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.Interfaces;
+using Restaurant.Domain.Entities.Enums;
 
 namespace Restaurant.API.Controllers;
 
 [ApiController]
 [Route("api/reservations")]
-public class ReservationController(IReservationService reservationService) : ControllerBase
+public class ReservationController(IReservationService reservationService, IOrderService orderService) : ControllerBase
 {
     /// <summary>
     /// Gets available tables for a specific date, time, and number of guests.
@@ -118,5 +118,117 @@ public class ReservationController(IReservationService reservationService) : Con
 
         var result = await reservationService.CancelReservationAsync(id, userId, role);
         return Ok(result);
+    }
+    
+    /// <summary>
+    /// Marks a reservation as completed.
+    /// </summary>
+    /// <param name="id">The ID of the reservation to complete.</param>
+    /// <returns>A success message indicating the reservation was completed.</returns>
+    /// <response code="200">Reservation completed successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    /// <response code="404">Reservation not found.</response>
+    [HttpPost("{id}/complete")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult> CompleteReservation(string id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+        
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+
+        var qrCodeResponse = await reservationService.CompleteReservationAsync(id);
+        
+        if (!string.IsNullOrEmpty(qrCodeResponse.QrCodeImageBase64))
+        {
+            return Ok(new
+            {
+                message = "Reservation completed successfully",
+                qrCodeData = qrCodeResponse
+            });
+        } 
+        
+        // For non-VISITOR clients
+        return Ok(new { message = "Reservation completed successfully" });
+    }
+    
+    /// <summary>
+    /// Adds a dish to an existing order associated with a reservation.
+    /// </summary>
+    /// <param name="reservationId">The ID of the reservation to which the dish will be added.</param>
+    /// <param name="dishId">The ID of the dish to add to the order.</param>
+    /// <returns>A success message indicating the dish was added to the reservation.</returns>
+    /// <response code="200">Dish was added to the reservation successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    [HttpPost("{reservationId}/order/{dishId}")]
+    [Authorize]
+    public async Task<IActionResult> AddDishToOrder(string reservationId, string dishId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+
+        await orderService.AddDishToOrderAsync(reservationId, dishId);
+        return Ok(new { message = "Dish was added to reservation successfully" });
+    }
+    
+    /// <summary>
+    /// Removes a dish from an existing order associated with a reservation.
+    /// </summary>
+    /// <param name="reservationId">The ID of the reservation from which the dish will be removed.</param>
+    /// <param name="dishId">The ID of the dish to remove from the order.</param>
+    /// <returns>A success message indicating the dish was removed from the reservation.</returns>
+    /// <response code="200">Dish was removed successfully from the reservation.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    [HttpDelete("{reservationId}/order/{dishId}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteDishFromOrder(string reservationId, string dishId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+
+        await orderService.DeleteDishFromOrderAsync(reservationId, dishId);
+        return Ok(new { message = "Dish was removed successfully from order" });
+    }
+    
+    // <summary>
+    /// Retrieves the list of dishes in an order associated with a specific reservation.
+    /// </summary>
+    /// <param name="reservationId">The ID of the reservation whose order dishes are to be retrieved.</param>
+    /// <returns>A list of dishes in the order.</returns>
+    /// <response code="200">Dishes retrieved successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    [HttpGet("{reservationId}/order/available-dishes")]
+    [Authorize]
+    public async Task<IActionResult> GetDishFromOrder(string reservationId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+        
+        var dishes = await orderService.GetDishesInOrderAsync(reservationId);
+        return Ok(dishes);
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Restaurant.Application.DTOs.Users;
 using Restaurant.Application.Interfaces;
 
 namespace Restaurant.API.Controllers;
@@ -41,5 +42,51 @@ public class UserController(IUserService userService) : ControllerBase
     {
         var users = await userService.GetAllUsersAsync();
         return Ok(users);
+    }
+
+    /// <summary>
+    /// Updates the password for the currently authenticated user.
+    /// </summary>
+    /// <param name="request">The request containing the old and new passwords.</param>
+    /// <returns>A success message indicating the password was updated.</returns>
+    /// <response code="200">Password was updated successfully.</response>
+    /// <response code="400">Validation failed or current password is incorrect.</response>
+    /// <response code="401">If the user is not authenticated or the token is invalid.</response>
+    /// <response code="404">If the user is not found.</response>
+    [HttpPut("profile/password")]
+    [Authorize]
+    public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token.");
+
+        await userService.UpdatePasswordAsync(userId, request);
+
+        return Ok(new { Message = "Password updated successfully." });
+    }
+    
+    /// <summary>
+    /// Updates the profile info for the currently authenticated user.
+    /// </summary>
+    /// <param name="request">The request containing the firstname, lastname and optional 64BaseEncoded img.</param>
+    /// <returns>A success message indicating the profile was updated.</returns>
+    /// <response code="200">Profile was updated successfully.</response>
+    /// <response code="400">Validation failed</response>
+    /// <response code="401">If the user is not authenticated or the token is invalid.</response>
+    /// <response code="404">If the user is not found.</response>
+    [HttpPut("profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("User ID not found in token.");
+
+        await userService.UpdateProfileAsync(userId, request);
+
+        return Ok(new { Message = "Profile has been successfully updated" });
     }
 }

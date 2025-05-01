@@ -6,5 +6,6 @@ namespace Restaurant.Domain.Entities.Enums;
 public enum Role
 {
     Customer,
-    Waiter
+    Waiter,
+    Admin
 }
