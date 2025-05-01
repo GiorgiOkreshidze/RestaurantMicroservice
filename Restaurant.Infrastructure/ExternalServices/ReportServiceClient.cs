@@ -9,7 +9,7 @@ namespace Restaurant.Infrastructure.ExternalServices
         public async Task<HttpResponseMessage> SendReportEmailAsync(string baseUrl)
         {
             logger.LogInformation("Sending request to reporting service to send report email");
-                var endpoint = $"{baseUrl}/send-report";
+                var endpoint = $"{baseUrl}/send";
                 var response = await httpClient.PostAsync(endpoint, null);
                 
                 response.EnsureSuccessStatusCode();
