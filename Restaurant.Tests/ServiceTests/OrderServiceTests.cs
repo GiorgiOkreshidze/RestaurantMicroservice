@@ -1,9 +1,11 @@
 ﻿using Moq;
 using NUnit.Framework;
+using Restaurant.Application;
 using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Application.Services;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Tests.ServiceTests;
@@ -34,6 +36,7 @@ public class OrderServiceTests
         // Arrange
         var reservationId = "valid-reservation";
         var dishId = "valid-dish";
+        var userId = "waiter-id";
         var dish = new Dish
         {
             Id = dishId,
@@ -43,6 +46,29 @@ public class OrderServiceTests
             ImageUrl = "http://testimage.com",
             Quantity = 1
         };
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Status = "Reserved",
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
 
         _dishRepositoryMock
             .Setup(d => d.GetDishByIdAsync(dishId))
@@ -57,7 +83,7 @@ public class OrderServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _orderService.AddDishToOrderAsync(reservationId, dishId);
+        await _orderService.AddDishToOrderAsync(reservationId, dishId, userId);
 
         // Assert
         _orderRepositoryMock.Verify(o => o.SaveAsync(It.Is<Order>(order =>
@@ -70,11 +96,35 @@ public class OrderServiceTests
     }
 
     [Test]
-    public async Task AddDishToOrderAsync_DishDoesNotExist_ThrowsNotFoundException()
+    public void AddDishToOrderAsync_DishDoesNotExist_ThrowsNotFoundException()
     {
         // Arrange
         var reservationId = "valid-reservation";
         var dishId = "nonexistent-dish";
+        var userId = "waiter-id";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Status = "Reserved",
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
 
         _dishRepositoryMock
             .Setup(d => d.GetDishByIdAsync(dishId))
@@ -82,9 +132,124 @@ public class OrderServiceTests
 
         // Act & Assert
         var ex = Assert.ThrowsAsync<NotFoundException>(() =>
-            _orderService.AddDishToOrderAsync(reservationId, dishId));
+            _orderService.AddDishToOrderAsync(reservationId, dishId, userId));
 
         Assert.That(ex?.Message, Is.EqualTo("The Dish with the key 'nonexistent-dish' was not found."));
+    }
+
+    [Test]
+    public void AddDishToOrderAsync_UnauthorizedUser_ThrowsUnauthorizedException()
+    {
+        // Arrange
+        var reservationId = "valid-reservation";
+        var dishId = "valid-dish";
+        var waiterId = "waiter-id";
+        var unauthorizedUserId = "different-user";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = waiterId,
+            Status = "Reserved",
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<UnauthorizedException>(() =>
+            _orderService.AddDishToOrderAsync(reservationId, dishId, unauthorizedUserId));
+
+        Assert.That(ex?.Message, Is.EqualTo("Only the assigned waiter can modify the order"));
+    }
+
+    [Test]
+    public void AddDishToOrderAsync_FinishedReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservationId = "finished-reservation";
+        var dishId = "valid-dish";
+        var userId = "waiter-id";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Status = ReservationStatus.Finished.ToString(),
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
+            _orderService.AddDishToOrderAsync(reservationId, dishId, userId));
+
+        Assert.That(ex?.Message, Is.EqualTo("Cannot add a dish on a completed reservation"));
+    }
+
+    [Test]
+    public void AddDishToOrderAsync_CanceledReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservationId = "canceled-reservation";
+        var dishId = "valid-dish";
+        var userId = "waiter-id";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Status = Utils.GetEnumDescription(ReservationStatus.Canceled),
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
+            _orderService.AddDishToOrderAsync(reservationId, dishId, userId));
+
+        Assert.That(ex?.Message, Is.EqualTo("Cannot add a dish on a reservation that is canceled"));
     }
 
     [Test]
@@ -93,6 +258,27 @@ public class OrderServiceTests
         // Arrange
         var reservationId = "valid-reservation";
         var dishId = "valid-dish";
+        var userId = "waiter-id";
+        
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Status = "Reserved",
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
         var order = new Order
         {
             Id = "order-id",
@@ -113,6 +299,10 @@ public class OrderServiceTests
             CreatedAt = DateTime.UtcNow.ToString("o"),
         };
 
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
         _orderRepositoryMock
             .Setup(o => o.GetOrderByReservationIdAsync(reservationId))
             .ReturnsAsync(order);
@@ -132,7 +322,7 @@ public class OrderServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _orderService.DeleteDishFromOrderAsync(reservationId, dishId);
+        await _orderService.DeleteDishFromOrderAsync(reservationId, dishId, userId);
 
         // Assert
         _orderRepositoryMock.Verify(o => o.SaveAsync(It.Is<Order>(order =>
@@ -140,6 +330,83 @@ public class OrderServiceTests
                 order.Dishes.Count == 0 && // dish was removed
                 order.TotalPrice == 0.0m // total updated accordingly
         )), Times.Once);
+    }
+    
+    [Test]
+    public void DeleteDishFromOrderAsync_UnauthorizedUser_ThrowsUnauthorizedException()
+    {
+        // Arrange
+        var reservationId = "valid-reservation";
+        var dishId = "valid-dish";
+        var waiterId = "waiter-id";
+        var unauthorizedUserId = "different-user";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = waiterId,
+            Status = "Reserved",
+            Date = DateTime.UtcNow.ToString("o"),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<UnauthorizedException>(() =>
+            _orderService.DeleteDishFromOrderAsync(reservationId, dishId, unauthorizedUserId));
+
+        Assert.That(ex?.Message, Is.EqualTo("Only the assigned waiter can modify the order"));
+    }
+
+    [Test]
+    public void DeleteDishFromOrderAsync_FinishedReservation_ThrowsConflictException()
+    {
+        // Arrange
+        var reservationId = "finished-reservation";
+        var dishId = "valid-dish";
+        var userId = "waiter-id";
+
+        var reservation = new Reservation
+        {
+            Id = reservationId,
+            WaiterId = userId,
+            Date = DateTime.UtcNow.ToString("o"),
+            Status = ReservationStatus.Finished.ToString(),
+            GuestsNumber = "1",
+            LocationId = "loc-123",
+            LocationAddress = "123 Main St",
+            PreOrder = "something",
+            TableId = "table-123",
+            TableCapacity = "4",
+            TableNumber = "1",
+            TimeFrom = "10:00",
+            TimeTo = "12:00",
+            TimeSlot = "10:00-12:00",
+            CreatedAt = DateTime.UtcNow.ToString("o"),
+        };
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservationId))
+            .ReturnsAsync(reservation);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<ConflictException>(() =>
+            _orderService.DeleteDishFromOrderAsync(reservationId, dishId, userId));
+
+        Assert.That(ex?.Message, Is.EqualTo("Cannot delete a dish on a completed reservation"));
     }
     
     [Test]

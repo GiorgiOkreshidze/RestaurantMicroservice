@@ -179,7 +179,7 @@ public class ReservationController(IReservationService reservationService, IOrde
         if (role != Role.Waiter.ToString())
             return Unauthorized("You don't have permission to access this resource.");
 
-        await orderService.AddDishToOrderAsync(reservationId, dishId);
+        await orderService.AddDishToOrderAsync(reservationId, dishId, userId);
         return Ok(new { message = "Dish was added to reservation successfully" });
     }
     
@@ -204,7 +204,7 @@ public class ReservationController(IReservationService reservationService, IOrde
         if (role != Role.Waiter.ToString())
             return Unauthorized("You don't have permission to access this resource.");
 
-        await orderService.DeleteDishFromOrderAsync(reservationId, dishId);
+        await orderService.DeleteDishFromOrderAsync(reservationId, dishId, userId);
         return Ok(new { message = "Dish was removed successfully from order" });
     }
     
