@@ -1,6 +1,7 @@
 ﻿using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities;
+using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Application.Services;
@@ -10,10 +11,11 @@ public class OrderService(
     IOrderRepository orderRepository,
     IReservationRepository reservationRepository) : IOrderService
 {
-    public async Task AddDishToOrderAsync(string reservationId, string dishId)
+    public async Task AddDishToOrderAsync(string reservationId, string dishId, string userId)
     {
+        var reservation = await ValidateReservationForDishModification(reservationId, "add", userId);
         var dish = await GetDishOrThrowAsync(dishId);
-        var order = await GetOrCreateOrderAsync(reservationId);
+        var order = await GetOrCreateOrderAsync(reservation.Id);
 
         AddOrUpdateDish(order, dish);
         order.TotalPrice = Utils.CalculateTotalPrice(
@@ -24,10 +26,11 @@ public class OrderService(
         await orderRepository.SaveAsync(order);
     }
 
-    public async Task DeleteDishFromOrderAsync(string reservationId, string dishId)
+    public async Task DeleteDishFromOrderAsync(string reservationId, string dishId, string userId)
     {
+        var reservation = await ValidateReservationForDishModification(reservationId, "delete", userId);
         var dish = await GetDishOrThrowAsync(dishId);
-        var order = await GetOrCreateOrderAsync(reservationId);
+        var order = await GetOrCreateOrderAsync(reservation.Id);
         
         if (RemoveOrDecrementDish(order, dish.Id))
         {
@@ -109,5 +112,27 @@ public class OrderService(
         }
 
         return true;
+    }
+    
+    private async Task<Domain.Entities.Reservation> ValidateReservationForDishModification(string reservationId, string operation, string userId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId)
+                        ?? throw new NotFoundException("Reservation", reservationId);
+        
+        if (reservation.WaiterId != userId)
+        {
+            throw new UnauthorizedException("Only the assigned waiter can modify the order");
+        }
+        
+        if (reservation.Status == ReservationStatus.Finished.ToString())
+        {
+            throw new ConflictException($"Cannot {operation} a dish on a completed reservation");
+        }
+
+        if (reservation.Status == Utils.GetEnumDescription(ReservationStatus.Canceled))
+        {
+            throw new ConflictException($"Cannot {operation} a dish on a reservation that is canceled");
+        }
+        return reservation;
     }
 }
