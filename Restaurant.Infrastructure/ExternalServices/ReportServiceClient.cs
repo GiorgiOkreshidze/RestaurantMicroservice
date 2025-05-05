@@ -43,7 +43,7 @@ namespace Restaurant.Infrastructure.ExternalServices
             var reports = JsonSerializer.Deserialize<IEnumerable<ReportResponse>>(content, options);
             //write log for reports
             logger.LogInformation("Retrieved reports: {Reports}", JsonSerializer.Serialize(reports));
-            return reports;
+            return reports ?? [];
         }
 
         public async Task<byte[]> DownloadReportAsync(string baseUrl, DateTime startDate, DateTime endDate, string? locationId, string format)

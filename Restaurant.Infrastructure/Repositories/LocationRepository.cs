@@ -17,4 +17,10 @@ public class LocationRepository(IDynamoDBContext context)
         var location = await context.LoadAsync<Location>(id);
         return location ?? null;
     }
+    
+    public async Task<bool> LocationExistsAsync(string id)
+    {
+        var location = await GetLocationByIdAsync(id);
+        return location != null;
+    }
 }

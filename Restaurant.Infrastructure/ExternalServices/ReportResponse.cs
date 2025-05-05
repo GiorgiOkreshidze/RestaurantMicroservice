@@ -2,15 +2,15 @@ namespace Restaurant.Infrastructure.ExternalServices;
 
     public class ReportResponse
     {
-        public string Location { get; set; }
+        public string Location { get; set; } = string.Empty;
         
-        public string StartDate { get; set; }
+        public string StartDate { get; set; } = string.Empty;
         
-        public string EndDate { get; set; }
+        public string EndDate { get; set; } = string.Empty;
       
-        public string WaiterName { get; set; }
+        public string WaiterName { get; set; } = string.Empty;
         
-        public string WaiterEmail { get; set; }
+        public string WaiterEmail { get; set; } = string.Empty;
         
         public double CurrentHours { get; set; }
         
