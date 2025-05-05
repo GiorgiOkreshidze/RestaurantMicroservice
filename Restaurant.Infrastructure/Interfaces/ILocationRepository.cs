@@ -7,5 +7,7 @@ namespace Restaurant.Infrastructure.Interfaces
         Task<IEnumerable<Location>> GetAllLocationsAsync();
 
         Task<Location?> GetLocationByIdAsync(string id);
+
+        Task<bool> LocationExistsAsync(string id);
     }
 }

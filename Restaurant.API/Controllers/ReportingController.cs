@@ -51,21 +51,12 @@ namespace Restaurant.API.Controllers
         [HttpGet("downloads")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DownloadReport([FromQuery] ReportDownloadRequest request)
-        {   
-            try
-            {
+        {  
                 var fileBytes = await reportingService.DownloadReportAsync(request);
-                
                 string contentType = GetContentType(request.Format);
                 string fileName = $"Report_{request.StartDate:yyyyMMdd}_to_{request.EndDate:yyyyMMdd}.{GetFileExtension(request.Format)}";
                 
                 return File(fileBytes, contentType, fileName);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error downloading report");
-                return StatusCode(500, new { message = "Failed to download report", error = ex.Message });
-            }
         }
         
         private string GetContentType(string format)
