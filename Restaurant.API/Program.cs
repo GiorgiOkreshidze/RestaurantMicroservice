@@ -18,7 +18,7 @@ builder.Services.AddControllers();
 builder.Services.Configure<JwtSettings>(options => {
     options.Key = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new ArgumentNullException(nameof(JwtSettings.Key), "JWT_KEY environment variable is not set");
     options.Issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? throw new ArgumentNullException(nameof(JwtSettings.Issuer), "JWT_ISSUER environment variable is not set");
-    options.Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new ArgumentNullException(nameof(JwtSettings.Audience), "JWT_ISSUER environment variable is not set"); ;
+    options.Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new ArgumentNullException(nameof(JwtSettings.Audience), "JWT_ISSUER environment variable is not set");
 
     if (int.TryParse(Environment.GetEnvironmentVariable("JWT_ACCESS_TOKEN_EXPIRY"), out int accessExpiry))
         options.AccessTokenExpiryMinutes = accessExpiry;
@@ -36,16 +36,16 @@ builder.Services.Configure<ReportSettings>(options => {
 });
 
 builder.Services.AddValidatorsFromAssembly(
-    typeof(Restaurant.Application.AssemblyMarker).Assembly);
+    typeof(AssemblyMarker).Assembly);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddHttpClient<IReportServiceClient, ReportServiceClient>();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(builder =>
+    options.AddDefaultPolicy(b =>
     {
-        builder.WithOrigins("http://localhost:5173", "https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy") // Allow requests from this origin
+        b.WithOrigins("http://localhost:5173", "https://frontend-run7team2-api-handler-dev.development.krci-dev.cloudmentor.academy") // Allow requests from this origin
                .AllowAnyHeader()
                .AllowAnyMethod()
                .AllowCredentials();
@@ -55,7 +55,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.AddSwaggerDoc();
 var app = builder.Build();
-
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<MongoDbSeeder>();
+    await seeder.SeedAsync();
+}
 app.UseMiddleware<ExceptionMiddleware>();
 
 // Configure the HTTP request pipeline.
