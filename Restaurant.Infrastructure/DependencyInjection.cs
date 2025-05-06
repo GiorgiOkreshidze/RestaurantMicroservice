@@ -33,8 +33,8 @@ public static class DependencyInjection
         // Register MongoDB
         services.Configure<MongoDbSettings>(options =>
         {
-            options.ConnectionString = Environment.GetEnvironmentVariable("connectionString.standardSrv") ?? 
-                                       Environment.GetEnvironmentVariable("connectionString.standard") ?? 
+            options.ConnectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING_STANDARD_SRV") ?? 
+                                       Environment.GetEnvironmentVariable("CONNECTION_STRING_STANDARD") ?? 
                                        "mongodb://localhost:27017";
             options.DatabaseName = "RestaurantDb";
         });
