@@ -1,113 +1,78 @@
-﻿using System.ComponentModel;
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using MongoDB.Driver;
 using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
+using SortDirection = Restaurant.Domain.Entities.Enums.SortDirection;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class DishRepository(IDynamoDBContext context) : IDishRepository
+public class DishRepository : IDishRepository
 {
+    private readonly IMongoCollection<Dish> _dishes;
+
+    public DishRepository(IMongoDatabase database)
+    {
+        _dishes = database.GetCollection<Dish>("Dishes");
+    }
+
     public async Task<IEnumerable<Dish>> GetSpecialtyDishesByLocationAsync(string locationId)
     {
-        var query = context.QueryAsync<Dish>(locationId, new DynamoDBOperationConfig
-        {
-            IndexName = "GSI1"
-        });
+        var filter = Builders<Dish>.Filter.And(
+            Builders<Dish>.Filter.Eq(d => d.LocationId, locationId),
+            Builders<Dish>.Filter.Eq(d => d.IsPopular, true)
+        );
 
-        var dishes = await query.GetRemainingAsync();
-        return dishes.Where(d => d.IsPopular);
+        return await _dishes.Find(filter).ToListAsync();
     }
 
     public async Task<IEnumerable<Dish>> GetPopularDishesAsync()
     {
-        var condition = new ScanCondition("IsPopular", ScanOperator.Equal, true);
-        var dishes = await context.ScanAsync<Dish>(
-            new List<ScanCondition> { condition },
-            new DynamoDBOperationConfig
-            {
-                Conversion = DynamoDBEntryConversion.V2
-            }).GetRemainingAsync();
-        
-        return dishes;
+        var filter = Builders<Dish>.Filter.Eq(d => d.IsPopular, true);
+        return await _dishes.Find(filter).ToListAsync();
     }
 
     public async Task<Dish?> GetDishByIdAsync(string id)
     {
-        var dish = await context.LoadAsync<Dish>(id);
-        return dish ?? null;    
+        var filter = Builders<Dish>.Filter.Eq(d => d.Id, id);
+        return await _dishes.Find(filter).FirstOrDefaultAsync();
     }
 
     public async Task<IEnumerable<Dish>> GetAllDishesAsync(DishFilterDto filter)
     {
-        var dishes = await context.ScanAsync<Dish>(new List<ScanCondition>(), new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
+        var queryFilter = Builders<Dish>.Filter.Empty;
 
         if (filter.DishType is not null)
         {
-            dishes = FilterDishByType(dishes, filter.DishType);
+            var dishTypeString = filter.DishType.ToString();
+            queryFilter = Builders<Dish>.Filter.Eq(d => d.DishType, dishTypeString);
         }
         
-        dishes = ApplySorting(dishes, filter.SortBy, filter.SortDirection).ToList();
+        SortDefinition<Dish> sortDefinition = null;
+        var isDescending = filter.SortDirection == SortDirection.Desc;
 
-        return dishes;
+        sortDefinition = filter.SortBy switch
+        {
+            DishSortBy.Price => isDescending 
+                ? Builders<Dish>.Sort.Descending("Price") 
+                : Builders<Dish>.Sort.Ascending("Price"),
+            DishSortBy.IsPopular => isDescending 
+                ? Builders<Dish>.Sort.Descending("IsPopular") 
+                : Builders<Dish>.Sort.Ascending("IsPopular"),
+            _ => Builders<Dish>.Sort.Ascending("Id")
+        };
+        
+        return await _dishes.Find(queryFilter)
+            .Sort(sortDefinition)
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<Dish>> GetDishesByIdsAsync(IEnumerable<string> dishIds)
     {
         if (dishIds == null || !dishIds.Any())
             return new List<Dish>();
-        
-        var dishes = new List<Dish>();
-        foreach (var id in dishIds)
-        {
-            var dish = await context.LoadAsync<Dish>(id);
-            if (dish != null)
-                dishes.Add(dish);
-        }
-    
-        return dishes;
-    }
 
-    private IEnumerable<Dish> ApplySorting(IEnumerable<Dish> dishes, DishSortBy? sortBy, SortDirection? sortDirection)
-    {
-        bool descending = sortDirection == SortDirection.Desc;
-
-        return sortBy switch
-        {
-            DishSortBy.Price => descending
-                ? dishes.OrderByDescending(d => ParsePrice(d.Price))
-                : dishes.OrderBy(d => ParsePrice(d.Price)),
-
-            DishSortBy.IsPopular => descending
-                ? dishes.OrderByDescending(d => d.IsPopular)
-                : dishes.OrderBy(d => d.IsPopular),
-
-            _ => dishes // No sorting
-        };
-    }
-
-    private decimal ParsePrice(string price)
-    {
-        return decimal.TryParse(price, out var parsedPrice) ? parsedPrice : 0;
-    }
-    
-    private List<Dish> FilterDishByType(List<Dish> dishes, DishType? dishTypeEnum)
-    {
-        return dishTypeEnum switch
-        {
-            DishType.Appetizers => dishes
-                .Where(dish => dish.DishType == nameof(DishType.Appetizers)).ToList(),
-            DishType.Desserts => dishes
-                .Where(dish => dish.DishType == nameof(DishType.Desserts)).ToList(),
-            DishType.MainCourses => dishes
-                .Where(dish => dish.DishType == nameof(DishType.MainCourses)).ToList(),
-            _ => dishes
-        };
+        var filter = Builders<Dish>.Filter.In(d => d.Id, dishIds);
+        return await _dishes.Find(filter).ToListAsync();
     }
 }

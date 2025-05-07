@@ -8,12 +8,6 @@ public class DishProfile : Profile
 {
     public DishProfile()
     {
-        CreateMap<Dish, DishDto>()
-            .ForMember(dest =>
-                    dest.Price, opt =>
-                    opt.MapFrom(src => decimal.Parse(src.Price)
-                    )
-            );
         CreateMap<Dish, DishDto>().ReverseMap();
         CreateMap<Dish, DishDetailsDto>().ReverseMap();
     }

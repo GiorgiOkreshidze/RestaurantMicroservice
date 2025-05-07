@@ -44,7 +44,7 @@ public class DishServiceTests
             {
                 Id = "dish-1",
                 Name = "Dish 1",
-                Price = "9.99",
+                Price = 9.99m,
                 ImageUrl = "http://example.com/dish1.jpg",
                 Weight = "200g",
                 IsPopular = true,
@@ -54,7 +54,7 @@ public class DishServiceTests
             {
                 Id = "dish-2",
                 Name = "Dish 2",
-                Price = "12.99",
+                Price = 12.99m,
                 ImageUrl = "http://example.com/dish2.jpg",
                 Weight = "300g",
                 IsPopular = true,
@@ -123,13 +123,13 @@ public class DishServiceTests
         Assert.That(result, Has.Count.EqualTo(2));
         Assert.That(result[0].Id, Is.EqualTo("dish-1"));
         Assert.That(result[0].Name, Is.EqualTo("Dish 1"));
-        Assert.That(result[0].Price, Is.EqualTo("9.99"));
+        Assert.That(result[0].Price, Is.EqualTo(9.99m));
         Assert.That(result[0].ImageUrl, Is.EqualTo("http://example.com/dish1.jpg"));
         Assert.That(result[0].Weight, Is.EqualTo("200g"));
 
         Assert.That(result[1].Id, Is.EqualTo("dish-2"));
         Assert.That(result[1].Name, Is.EqualTo("Dish 2"));
-        Assert.That(result[1].Price, Is.EqualTo("12.99"));
+        Assert.That(result[1].Price, Is.EqualTo(12.99m));
         Assert.That(result[1].ImageUrl, Is.EqualTo("http://example.com/dish2.jpg"));
         Assert.That(result[1].Weight, Is.EqualTo("300g"));
     }
@@ -144,7 +144,7 @@ public class DishServiceTests
             {
                 Id = "dish-1",
                 Name = "Dish 1",
-                Price = "9.99",
+                Price = 9.99m,
                 ImageUrl = "http://example.com/dish1.jpg",
                 Weight = "200g",
             },
@@ -152,7 +152,7 @@ public class DishServiceTests
             {
                 Id = "dish-2",
                 Name = "Dish 2",
-                Price = "12.99",
+                Price = 12.99m,
                 ImageUrl = "http://example.com/dish2.jpg",
                 Weight = "300g",
             }
@@ -188,7 +188,7 @@ public class DishServiceTests
         {
             Id = dishId,
             Name = "Dish 1",
-            Price = "9.99",
+            Price = 9.99m,
             ImageUrl = "http://example.com/dish1.jpg",
             Weight = "200g",
             Calories = "620 kcal",

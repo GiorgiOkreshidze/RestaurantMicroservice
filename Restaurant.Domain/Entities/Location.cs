@@ -4,7 +4,6 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Restaurant.Domain.Entities
 {
-    
     public class Location
     {
         [BsonId]

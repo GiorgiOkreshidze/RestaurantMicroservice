@@ -40,7 +40,7 @@ public class OrderServiceTests
         var dish = new Dish
         {
             Id = dishId,
-            Price = "10",
+            Price = 10m,
             Name = "someName",
             Weight = "50g",
             ImageUrl = "http://testimage.com",
@@ -288,7 +288,7 @@ public class OrderServiceTests
                 new()
                 {
                     Id = dishId,
-                    Price = "10",
+                    Price = 10m,
                     Name = "someName",
                     Weight = "50g",
                     ImageUrl = "http://testimage.com",
@@ -311,7 +311,7 @@ public class OrderServiceTests
             .Setup(d => d.GetDishByIdAsync(dishId))
             .ReturnsAsync(new Dish { 
                 Id = dishId,
-                Price = "10",
+                Price = 10m,
                 Name = "someName",
                 Weight = "50g",
                 ImageUrl = "http://testimage.com",
@@ -440,7 +440,7 @@ public class OrderServiceTests
                 {
                     Id = "dish-1",
                     Name = "Pizza",
-                    Price = "10",
+                    Price = 10m,
                     Weight = "500g",
                     ImageUrl = "",
                     IsPopular = true

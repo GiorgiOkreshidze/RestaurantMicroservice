@@ -6,7 +6,7 @@ public class DishDto
     
     public required string Name { get; set; }
     
-    public required string Price { get; set; }
+    public required decimal Price { get; set; }
     
     public required string Weight { get; set; }
     
