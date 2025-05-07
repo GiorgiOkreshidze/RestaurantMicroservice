@@ -35,9 +35,8 @@ public static class Utils
         return attribute == null ? value.ToString() : attribute.Description;
     }
     
-    public static decimal CalculateTotalPrice<T>(IEnumerable<T> items, Func<T, string> priceSelector, Func<T, int> quantitySelector)
+    public static decimal CalculateTotalPrice<T>(IEnumerable<T> items, Func<T, decimal> priceSelector, Func<T, int> quantitySelector)
     {
-        return items.Sum(item =>
-            decimal.Parse(priceSelector(item).TrimStart('$')) * quantitySelector(item));
+        return items.Sum(item => priceSelector(item) * quantitySelector(item));
     }
 }

@@ -158,7 +158,7 @@ namespace Restaurant.Tests.ServiceTests
             Assert.That(firstPreOrder.DishItems[0].DishId, Is.EqualTo("dish-1"));
             Assert.That(firstPreOrder.DishItems[0].DishName, Is.EqualTo("Pasta Carbonara"));
             Assert.That(firstPreOrder.DishItems[0].DishQuantity, Is.EqualTo(2));
-            Assert.That(firstPreOrder.DishItems[0].DishPrice, Is.EqualTo("15.99"));
+            Assert.That(firstPreOrder.DishItems[0].DishPrice, Is.EqualTo(15.99m));
             Assert.That(firstPreOrder.DishItems[0].DishImageUrl, Is.EqualTo("https://example.com/images/pasta.jpg"));
 
             // Verify second pre-order
@@ -472,7 +472,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -497,7 +497,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -523,7 +523,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -539,7 +539,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "10.99",
+                        Price = 10.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -563,7 +563,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -640,7 +640,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -655,7 +655,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "10.99",
+                        Price = 10.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -682,7 +682,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "dish-1",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     }
@@ -712,7 +712,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "valid-dish",
                         DishQuantity = 1,
-                        DishPrice = "$10.99",
+                        DishPrice = 10.99m,
                         DishImageUrl = "image1.jpg",
                         DishName = "Pasta"
                     },
@@ -720,7 +720,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         DishId = "invalid-dish",
                         DishQuantity = 2,
-                        DishPrice = "$12.99",
+                        DishPrice = 12.99m,
                         DishImageUrl = "image2.jpg",
                         DishName = "Salad"
                     }
@@ -735,7 +735,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "valid-dish",
                         Name = "Valid Dish",
-                        Price = "10.99",
+                        Price = 10.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -761,7 +761,7 @@ namespace Restaurant.Tests.ServiceTests
                 ReservationDate = "2023-10-15",
                 DishItems = new List<DishItemDto>
                 {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = "$12.99", DishImageUrl = "image1.jpg" }
+                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
                 }
             };
 
@@ -773,7 +773,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "12.99",
+                        Price = 12.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -847,7 +847,7 @@ namespace Restaurant.Tests.ServiceTests
                 ReservationDate = "9999-12-15",
                 DishItems = new List<DishItemDto>
                 {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = "$12.99", DishImageUrl = "image1.jpg" }
+                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
                 }
             };
 
@@ -862,7 +862,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "12.99",
+                        Price = 12.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -910,7 +910,7 @@ namespace Restaurant.Tests.ServiceTests
                 ReservationDate = "9999-12-15",
                 DishItems = new List<DishItemDto>
                 {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = "$12.99", DishImageUrl = "image1.jpg" }
+                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
                 }
             };
 
@@ -939,7 +939,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "12.99",
+                        Price = 12.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -980,7 +980,7 @@ namespace Restaurant.Tests.ServiceTests
                 ReservationDate = "2023-12-15",
                 DishItems = new List<DishItemDto>
                 {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = "$12.99", DishImageUrl = "image1.jpg" }
+                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
                 }
             };
 
@@ -992,7 +992,7 @@ namespace Restaurant.Tests.ServiceTests
                     {
                         Id = "dish-1",
                         Name = "Pasta",
-                        Price = "12.99",
+                        Price = 12.99m,
                         Weight = "1kg",
                         ImageUrl = "image1.jpg",
                     }
@@ -1040,8 +1040,8 @@ namespace Restaurant.Tests.ServiceTests
                 ReservationDate = "2023-12-15",
                 DishItems = new List<DishItemDto>
                 {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = "$12.99", DishImageUrl = "image1.jpg" },
-                    new() { DishId = "dish-2", DishName = "Salad", DishQuantity = 1, DishPrice = "$8.50", DishImageUrl = "image2.jpg" }
+                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" },
+                    new() { DishId = "dish-2", DishName = "Salad", DishQuantity = 1, DishPrice = 8.50m, DishImageUrl = "image2.jpg" }
                 }
             };
 
@@ -1053,14 +1053,14 @@ namespace Restaurant.Tests.ServiceTests
                 {
                     Id = "dish-1",
                     Name = "Pasta",
-                    Price = "12.99",
+                    Price = 12.99m,
                     Weight = "1kg",
                     ImageUrl = "image1.jpg",
                 }, new()
                     {
                         Id = "dish-2",
                         Name = "Salad",
-                        Price = "8.50",
+                        Price = 8.50m,
                         Weight = "500g",
                         ImageUrl = "image2.jpg",
                     }

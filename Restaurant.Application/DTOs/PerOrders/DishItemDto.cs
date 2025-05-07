@@ -14,7 +14,7 @@ namespace Restaurant.Application.DTOs.PerOrders
         
         public required string DishName { get; set; }
         
-        public required string DishPrice { get; set; }
+        public required decimal DishPrice { get; set; }
         
         public int DishQuantity { get; set; }
     }

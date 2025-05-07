@@ -162,7 +162,7 @@ public class PreOrderService(
                 DishId = item.DishId,
                 DishName = item.DishName,
                 DishImageUrl = item.DishImageUrl,
-                Price = decimal.Parse(item.DishPrice.TrimStart('$')),
+                Price = item.DishPrice,
                 Quantity = item.DishQuantity
             };
             preOrder.Items.Add(preOrderItem);
