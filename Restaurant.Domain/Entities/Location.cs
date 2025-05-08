@@ -8,11 +8,17 @@ namespace Restaurant.Domain.Entities
     {
         [BsonId]
         public required string Id { get; set; }
+        
         public required string Address { get; set; }
+        
         public double AverageOccupancy { get; set; }
+        
         public double Rating { get; set; }
+        
         public int TotalCapacity { get; set; }
+        
         public required string ImageUrl { get; set; }
+        
         public required string Description { get; set; }
     }
 }
