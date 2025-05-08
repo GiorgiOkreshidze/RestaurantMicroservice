@@ -1,78 +1,61 @@
-using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+using MongoDB.Driver;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories
 {
-    public class UserRepository(IDynamoDBContext context) : IUserRepository
+    public class UserRepository : IUserRepository
     {
-
+        private readonly IMongoCollection<User> _collection;
+        
+        public UserRepository(IMongoDatabase database)
+        {
+            _collection = database.GetCollection<User>("Users");
+            
+            // Create email index
+            var indexKeysDefinition = Builders<User>.IndexKeys.Ascending(u => u.Email);
+            var indexOptions = new CreateIndexOptions { Name = "Email_Index", Unique = true };
+            var indexModel = new CreateIndexModel<User>(indexKeysDefinition, indexOptions);
+            _collection.Indexes.CreateOne(indexModel);
+        }
+        
         public async Task<User?> GetUserByIdAsync(string id)
         {
-            return await context.LoadAsync<User>(id);
+            return await _collection.Find(u => u.Id == id).FirstOrDefaultAsync();
         }
 
-        public Task<List<User>> GetAllUsersAsync()
+        public async Task<List<User>> GetAllUsersAsync()
         {
-            var scanConditions = new List<ScanCondition>
-            {
-                new("RoleString", ScanOperator.Equal, Role.Customer.ToString())
-            };
-            
-            var users = context.ScanAsync<User>(scanConditions, new DynamoDBOperationConfig
-            {
-                Conversion = DynamoDBEntryConversion.V2
-            }).GetRemainingAsync();
-            
-            return users;
+            return await _collection.Find(u => u.RoleString == Role.Customer.ToString()).ToListAsync();
         }
 
         public async Task<User?> GetUserByEmailAsync(string email)
         {
-            var users = await context.QueryAsync<User>(email,
-                new DynamoDBOperationConfig
-                {
-                    IndexName = "GSI1"
-                }).GetRemainingAsync();
-
-            return users.FirstOrDefault();
+            return await _collection.Find(u => u.Email == email).FirstOrDefaultAsync();
         }
 
         public async Task<string> SignupAsync(User user)
         {
             user.Id = Guid.NewGuid().ToString();
-
-            await context.SaveAsync(user);
+            await _collection.InsertOneAsync(user);
             return user.Email;
         }
 
         public async Task<bool> DoesEmailExistAsync(string email)
         {
-            var queryResults = await context.QueryAsync<User>(email,
-                new DynamoDBOperationConfig
-                {
-                    IndexName = "GSI1"
-                }).GetRemainingAsync();
-
-            return queryResults.Count > 0;
+            return await _collection.Find(u => u.Email == email).AnyAsync();
         }
 
         public async Task UpdatePasswordAsync(string userId, string newPasswordHash)
         {
-            var user = await GetUserByIdAsync(userId);
-            if (user != null)
-            {
-                user.PasswordHash = newPasswordHash;
-                await context.SaveAsync(user);
-            }
+            var update = Builders<User>.Update.Set(u => u.PasswordHash, newPasswordHash);
+            await _collection.UpdateOneAsync(u => u.Id == userId, update);
         }
         
         public async Task UpdateProfileAsync(User user)
         {
-            await context.SaveAsync(user);
+            await _collection.ReplaceOneAsync(u => u.Id == user.Id, user);
         }
     }
 }

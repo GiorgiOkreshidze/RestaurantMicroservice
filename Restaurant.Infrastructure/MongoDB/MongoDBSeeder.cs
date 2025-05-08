@@ -17,6 +17,7 @@ public class MongoDbSeeder
     {
         await CreateIndexesAsync();
         await SeedCollectionAsync<Dish>("Dishes", GetDishSeedData());
+        await SeedCollectionAsync<EmployeeInfo>("EmployeeInfo", GetEmployeeInfoSeedData());
     }
     
     private async Task CreateIndexesAsync()
@@ -157,6 +158,27 @@ public class MongoDbSeeder
             Vitamins = vitamins,
             Weight = weight,
             State = state
+        };
+    }
+    
+    private List<EmployeeInfo> GetEmployeeInfoSeedData()
+    {
+        return new List<EmployeeInfo>
+        {
+            CreateEmployeeInfo("laydyGaga98@example.com", "8c4fc44e-c1a5-42eb-9912-55aeb5111a99"),
+            CreateEmployeeInfo("johnyDepp007@example.com", "8c4fc44e-c1a5-42eb-9912-55aeb5111a99"),
+            CreateEmployeeInfo("kylieJenner69@example.com", "e1fcb3b4-bf68-4bcb-b9ba-eac917dafac7"),
+            CreateEmployeeInfo("johnCena46@example.com", "3a88c365-970b-4a7a-a206-bc5282b9b25f")
+        };
+    }
+
+    private EmployeeInfo CreateEmployeeInfo(string email, string locationId)
+    {
+        return new EmployeeInfo
+        {
+            Email = email,
+            LocationId = locationId,
+            Role = "Waiter",
         };
     }
 }

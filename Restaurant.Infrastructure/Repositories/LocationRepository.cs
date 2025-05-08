@@ -1,4 +1,3 @@
-using Amazon.DynamoDBv2.DataModel;
 using MongoDB.Driver;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
