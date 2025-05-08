@@ -1,143 +1,148 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using MongoDB.Driver;
 using Restaurant.Application.DTOs.Feedbacks;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
 
-namespace Restaurant.Infrastructure.Repositories
+namespace Restaurant.Infrastructure.Repositories;
+
+public class FeedbackRepository : IFeedbackRepository
 {
-    public class FeedbackRepository(IDynamoDBContext context) : IFeedbackRepository
+    private readonly IMongoCollection<Feedback> _collection;
+
+    public FeedbackRepository(IMongoDatabase database)
     {
-        public async Task<(List<Feedback>, string?)> GetFeedbacksAsync(string id, FeedbackQueryParameters queryParams)
+        _collection = database.GetCollection<Feedback>("Feedbacks");
+            
+        CreateIndexes();
+    }
+
+    private void CreateIndexes()
+    {
+        _collection.Indexes.CreateOne(new CreateIndexModel<Feedback>( //equivalent to DateIndex and RatingIndex hash key
+            Builders<Feedback>.IndexKeys.Ascending(f => f.LocationId)));
+
+        _collection.Indexes.CreateOne(new CreateIndexModel<Feedback>( //equivalent to RatingByTypeIndex and DateByTypeIndex hash key
+            Builders<Feedback>.IndexKeys.Ascending(f => f.LocationIdType)));
+
+        _collection.Indexes.CreateOne(new CreateIndexModel<Feedback>( //equivalent to ReservationTypeIndex hash key
+            Builders<Feedback>.IndexKeys.Ascending(f => f.ReservationIdType)));
+
+        _collection.Indexes.CreateOne(new CreateIndexModel<Feedback>( //equivalent to DateIndex and DateByTypeIndex range key
+            Builders<Feedback>.IndexKeys
+                .Ascending(f => f.LocationId)
+                .Ascending(f => f.Date)));
+
+        _collection.Indexes.CreateOne(new CreateIndexModel<Feedback>( //equivalent to RatingIndex and RatingByTypeIndex range key
+            Builders<Feedback>.IndexKeys
+                .Ascending(f => f.LocationId)
+                .Ascending(f => f.Rate)));
+    }
+        
+    public async Task<(List<Feedback>, string?)> GetFeedbacksAsync(string id, FeedbackQueryParameters queryParams)
+    {
+        var filter = CreateQueryFilter(id, queryParams);
+        var sort = CreateSortDefinition(queryParams);
+
+        int itemsToSkip = 0;
+        if (!string.IsNullOrEmpty(queryParams.NextPageToken) &&
+            int.TryParse(queryParams.NextPageToken, out int skipCount))
         {
-            var queryConfig = CreateQueryConfiguration(id, queryParams);
-            var search = context.FromQueryAsync<Feedback>(queryConfig);
-
-            int itemsToSkip = 0;
-            if (!string.IsNullOrEmpty(queryParams.NextPageToken) &&
-                int.TryParse(queryParams.NextPageToken, out int skipCount))
-            {
-                itemsToSkip = skipCount;
-            }
-
-            var feedbacks = new List<Feedback>();
-            var searchResponse = await search.GetRemainingAsync();
-
-            var pagedResults = searchResponse.Skip(itemsToSkip).Take(queryParams.PageSize + 1).ToList();
-
-            string? nextPageToken = null;
-
-            if (pagedResults.Count > queryParams.PageSize)
-            {
-                pagedResults.RemoveAt(queryParams.PageSize);
-                nextPageToken = (itemsToSkip + queryParams.PageSize).ToString();
-            }
-
-            return (pagedResults, nextPageToken);
+            itemsToSkip = skipCount;
         }
 
-        public async Task UpsertFeedbackByReservationAndTypeAsync(Feedback feedback)
+        var query = _collection.Find(filter)
+            .Sort(sort)
+            .Skip(itemsToSkip)
+            .Limit(queryParams.PageSize + 1); // Request one extra item for pagination
+
+        var pagedResults = await query.ToListAsync();
+
+        string? nextPageToken = null;
+        if (pagedResults.Count > queryParams.PageSize)
         {
-            var reservationIdTypeKey = $"{feedback.ReservationId}#{feedback.Type}";
-            feedback.ReservationIdType = reservationIdTypeKey;
-            feedback.LocationIdType = $"{feedback.LocationId}#{feedback.Type}";
-
-            var config = new QueryOperationConfig
-            {
-                IndexName = "ReservationTypeIndex",
-                Filter = new QueryFilter(),
-            };
-
-            config.Filter.AddCondition("reservationId#type", QueryOperator.Equal, reservationIdTypeKey);
-
-            var feedbacks = await context.FromQueryAsync<Feedback>(config).GetRemainingAsync();
-
-            var existingFeedback = feedbacks.FirstOrDefault();
-
-            if (existingFeedback != null && !String.IsNullOrEmpty(existingFeedback.LocationId) &&
-                !String.IsNullOrEmpty(existingFeedback.TypeDate))
-            {
-                await UpdateExistingFeedbackRateAndCommentAsync(feedback, existingFeedback);
-            }
-            else
-            {
-                feedback.TypeDate = $"{feedback.Type}#{feedback.Date}";
-                await context.SaveAsync(feedback); // Insert new feedback
-            }
+            pagedResults.RemoveAt(queryParams.PageSize);
+            nextPageToken = (itemsToSkip + queryParams.PageSize).ToString();
         }
 
-        private async Task UpdateExistingFeedbackRateAndCommentAsync(Feedback newFeedback, Feedback existingFeedback)
-        {
-            existingFeedback.Rate = newFeedback.Rate;
-            existingFeedback.Comment = newFeedback.Comment;
-            existingFeedback.TypeDate = $"{newFeedback.Type}#{newFeedback.Date}";
-            existingFeedback.IsAnonymous = newFeedback.IsAnonymous;
+        return (pagedResults, nextPageToken);
+    }
+        
+    public async Task UpsertFeedbackByReservationAndTypeAsync(Feedback feedback)
+    {
+        var reservationIdTypeKey = $"{feedback.ReservationId}#{feedback.Type}";
+        feedback.ReservationIdType = reservationIdTypeKey;
+        feedback.LocationIdType = $"{feedback.LocationId}#{feedback.Type}";
 
-            await context.SaveAsync(existingFeedback);
+        var filter = Builders<Feedback>.Filter.Eq(f => f.ReservationIdType, reservationIdTypeKey);
+        var existingFeedback = await _collection.Find(filter).FirstOrDefaultAsync();
+
+        if (existingFeedback != null && !string.IsNullOrEmpty(existingFeedback.LocationId) &&
+            !string.IsNullOrEmpty(existingFeedback.TypeDate))
+        {
+            await UpdateExistingFeedbackRateAndCommentAsync(feedback, existingFeedback);
         }
-
-        private QueryOperationConfig CreateQueryConfiguration(string locationId, FeedbackQueryParameters queryParams)
+        else
         {
-            var config = new QueryOperationConfig
-            {
-                Limit = queryParams.PageSize + 1, // Request one extra item to determine if there are more pages
-                BackwardSearch = queryParams.SortDirection?.ToLower() == "desc"
-            };
+            feedback.TypeDate = $"{feedback.Type}#{feedback.Date}";
+            await _collection.InsertOneAsync(feedback);
+        }
+    }
+        
+    private async Task UpdateExistingFeedbackRateAndCommentAsync(Feedback newFeedback, Feedback existingFeedback)
+    {
+        var filter = Builders<Feedback>.Filter.Eq(f => f.Id, existingFeedback.Id);
+        var update = Builders<Feedback>.Update
+            .Set(f => f.Rate, newFeedback.Rate)
+            .Set(f => f.Comment, newFeedback.Comment)
+            .Set(f => f.TypeDate, $"{newFeedback.Type}#{newFeedback.Date}")
+            .Set(f => f.IsAnonymous, newFeedback.IsAnonymous);
 
-            // Determine which index and query to use based on sort property and type filter
-            if (queryParams.SortProperty?.ToLower() == "date")
+        await _collection.UpdateOneAsync(filter, update);
+    }
+        
+    private static FilterDefinition<Feedback> CreateQueryFilter(string locationId, FeedbackQueryParameters queryParams)
+    {
+        var filterBuilder = Builders<Feedback>.Filter;
+
+        if (queryParams.SortProperty.ToLower() == "date")
+        {
+            if (queryParams.EnumType.HasValue)
             {
-                if (queryParams.EnumType.HasValue)
-                {
-                    // Using DateByTypeIndex
-                    config.IndexName = "DateByTypeIndex";
-                    config.Filter = new QueryFilter();
-                    config.Filter.AddCondition("locationId#type", QueryOperator.Equal,
-                        $"{locationId}#{queryParams.EnumType.Value.ToDynamoDBType()}");
-                }
-                else
-                {
-                    // Using DateIndex
-                    config.IndexName = "DateIndex";
-                    config.Filter = new QueryFilter();
-                    config.Filter.AddCondition("locationId", QueryOperator.Equal, locationId);
-                }
+                return filterBuilder.Eq(f => 
+                        f.LocationIdType, $"{locationId}#{queryParams.EnumType.Value.ToDynamoDBType()}"); //DateByTypeIndex
             }
-            else // Default to rating sort
-            {
-                if (queryParams.EnumType.HasValue)
-                {
-                    // Using RatingByTypeIndex
-                    config.IndexName = "RatingByTypeIndex";
-                    config.Filter = new QueryFilter();
-                    config.Filter.AddCondition("locationId#type", QueryOperator.Equal,
-                        $"{locationId}#{queryParams.EnumType.Value.ToDynamoDBType()}");
-                }
-                else
-                {
-                    // Using RatingIndex
-                    config.IndexName = "RatingIndex";
-                    config.Filter = new QueryFilter();
-                    config.Filter.AddCondition("locationId", QueryOperator.Equal, locationId);
-                }
-            }
-
-            return config;
+            
+            return filterBuilder.Eq(f => f.LocationId, locationId); //DateIndex
         }
 
-        public async Task<IEnumerable<Feedback>> GetServiceFeedbacks(string reservationId)
+        // Default to rating sort
+        if (queryParams.EnumType.HasValue)
         {
-            var key = $"{reservationId}#SERVICE_QUALITY";
-
-            var queryConfig = new DynamoDBOperationConfig
-            {
-                IndexName = "ReservationTypeIndex"
-            };
-
-            var result = await context.QueryAsync<Feedback>(key, queryConfig).GetRemainingAsync();
-
-            return result;
+            return filterBuilder.Eq(f => 
+                    f.LocationIdType, $"{locationId}#{queryParams.EnumType.Value.ToDynamoDBType()}"); //RatingByTypeIndex
         }
+        
+        return filterBuilder.Eq(f => f.LocationId, locationId); //RatingIndex
+    }
+        
+    public async Task<IEnumerable<Feedback>> GetServiceFeedbacks(string reservationId)
+    {
+        var key = $"{reservationId}#SERVICE_QUALITY";
+        var filter = Builders<Feedback>.Filter.Eq(f => f.ReservationIdType, key);
+        return await _collection.Find(filter).ToListAsync();
+    }
+        
+    private static SortDefinition<Feedback> CreateSortDefinition(FeedbackQueryParameters queryParams)
+    {
+        var sortBuilder = Builders<Feedback>.Sort;
+        bool isDescending = queryParams.SortDirection?.ToLower() == "desc";
+
+        if (queryParams.SortProperty?.ToLower() == "date")
+        {
+            return isDescending ? sortBuilder.Descending(f => f.Date) : sortBuilder.Ascending(f => f.Date);
+        }
+
+        return isDescending ? sortBuilder.Descending(f => f.Rate) : sortBuilder.Ascending(f => f.Rate);
     }
 }
