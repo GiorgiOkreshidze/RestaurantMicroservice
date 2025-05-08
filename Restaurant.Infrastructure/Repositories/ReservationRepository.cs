@@ -1,6 +1,4 @@
-﻿using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using MongoDB.Driver;
 using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
@@ -8,40 +6,48 @@ using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class ReservationRepository(IDynamoDBContext context) : IReservationRepository
+public class ReservationRepository : IReservationRepository
 {
+    private readonly IMongoCollection<Reservation> _collection;
+
+    public ReservationRepository(IMongoDatabase database)
+    {
+        _collection = database.GetCollection<Reservation>("Reservations");
+        
+        var dateLocationIndexKeys = Builders<Reservation>.IndexKeys
+            .Ascending(r => r.Date)
+            .Ascending(r => r.LocationId);
+        var dateLocationIndexOptions = new CreateIndexOptions
+        {
+            Name = "Date_LocationId_Index"
+        };
+        _collection.Indexes.CreateOneAsync(new CreateIndexModel<Reservation>(dateLocationIndexKeys, dateLocationIndexOptions));
+
+        var waiterIdIndexKeys = Builders<Reservation>.IndexKeys
+            .Ascending(r => r.WaiterId);
+        var waiterIdIndexOptions = new CreateIndexOptions
+        {
+            Name = "WaiterId_Index"
+        };
+        _collection.Indexes.CreateOneAsync(new CreateIndexModel<Reservation>(waiterIdIndexKeys, waiterIdIndexOptions));
+        
+        var userEmailIndexKeys = Builders<Reservation>.IndexKeys
+            .Ascending(r => r.UserEmail);
+        var userEmailIndexOptions = new CreateIndexOptions
+        {
+            Name = "UserEmail_Index"
+        };
+        _collection.Indexes.CreateOneAsync(new CreateIndexModel<Reservation>(userEmailIndexKeys, userEmailIndexOptions));
+    }
+
+
     public async Task<Reservation> UpsertReservationAsync(Reservation reservation)
     {
-        var reservationId = reservation.Id;
-        var existingReservation = await context.LoadAsync<Reservation>(reservationId);
-        if (existingReservation != null)
-        {
-            existingReservation.CreatedAt = reservation.CreatedAt;
-            existingReservation.Date = reservation.Date;
-            existingReservation.GuestsNumber = reservation.GuestsNumber;
-            existingReservation.LocationAddress = reservation.LocationAddress;
-            existingReservation.LocationId = reservation.LocationId;
-            existingReservation.PreOrder = reservation.PreOrder;
-            existingReservation.Status = reservation.Status;
-            existingReservation.TableNumber = reservation.TableNumber;
-            existingReservation.TableId = reservation.TableId;
-            existingReservation.TimeFrom = reservation.TimeFrom;
-            existingReservation.TimeTo = reservation.TimeTo;
-            existingReservation.TimeSlot = reservation.TimeSlot;
-            existingReservation.UserInfo = reservation.UserInfo;
-            existingReservation.WaiterId = reservation.WaiterId;
-            existingReservation.UserEmail = reservation.UserEmail;
-            existingReservation.ClientType = reservation.ClientType;
-            existingReservation.TableCapacity = reservation.TableCapacity;
-            existingReservation.FeedbackToken = reservation.FeedbackToken;
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, reservation.Id);
+        var options = new ReplaceOptions { IsUpsert = true };
 
-            await context.SaveAsync(existingReservation);
-        }
-        else
-        {
-            await context.SaveAsync(reservation);
-        }
-        
+        await _collection.ReplaceOneAsync(filter, reservation, options);
+
         return reservation;
     }
 
@@ -50,65 +56,50 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
         if (string.IsNullOrWhiteSpace(reservationId))
             return false;
 
-        var reservation = await context.LoadAsync<Reservation>(reservationId);
-        return reservation is not null;
+        return await _collection.Find(r => r.Id == reservationId).AnyAsync();
     }
 
     public async Task<int> GetWaiterReservationCountAsync(string waiterId, string date)
     {
-        var scanCondition = new List<ScanCondition>()
-        {
-            new("WaiterId", ScanOperator.Equal, waiterId),
-            new("Date", ScanOperator.Equal, date)
-        };
+        var builder = Builders<Reservation>.Filter;
 
-        var reservations = await context.ScanAsync<Reservation>(scanCondition, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
-        
-        return reservations.Count;
+        var waiterIdFilter = builder.Eq(r => r.WaiterId, waiterId);
+        var dateFilter = builder.Eq(r => r.Date, date);
+        var combinedFilter = builder.And(dateFilter, waiterIdFilter);
+
+        var count = await _collection.CountDocumentsAsync(combinedFilter);
+        return (int)count;
     }
 
     public async Task<Reservation?> GetReservationByIdAsync(string reservationId)
     {
-        var reservation = await context.LoadAsync<Reservation>(reservationId);
-        return reservation ?? null;
+        return await _collection.Find(r => r.Id == reservationId).FirstOrDefaultAsync();
     }
 
-    public async Task<List<Reservation>> GetReservationsByDateLocationTable(string date, string locationAddress, string tableId)
+    public async Task<List<Reservation>> GetReservationsByDateLocationTable(string date, string locationAddress,
+        string tableId)
     {
-        var scanCondition = new List<ScanCondition>()
-        {
-            new("LocationAddress", ScanOperator.Equal, locationAddress),
-            new("Date", ScanOperator.Equal, date),
-            new("TableId", ScanOperator.Equal, tableId)
-        };
+        var builder = Builders<Reservation>.Filter;
 
-        var reservations = await context.ScanAsync<Reservation>(scanCondition, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
+        var dateFilter = builder.Eq(r => r.Date, date);
+        var locationAddressFilter  = builder.Eq(r => r.LocationAddress, locationAddress);
+        var tableIdFilter  = builder.Eq(r => r.TableId, tableId);
+        var combinedFilter = builder.And(dateFilter, locationAddressFilter, tableIdFilter);
 
+        var reservations = await _collection.Find(combinedFilter).ToListAsync();
         return reservations;
     }
 
     public async Task<IEnumerable<Reservation>> GetReservationsForDateAndLocation(string date, string locationId)
     {
-        // Create scan conditions for date and locationId
-        var scanConditions = new List<ScanCondition>
-    {
-        new ScanCondition("Date", ScanOperator.Equal, date),
-        new ScanCondition("LocationId", ScanOperator.Equal, locationId),
-        new ScanCondition("Status", ScanOperator.NotEqual, "Canceled")
-    };
+        var builder = Builders<Reservation>.Filter;
+        
+        var dateFilter  = builder.Eq(r => r.Date, date);
+        var locationFilter  = builder.Eq(r => r.LocationId, locationId);
+        var notCanceledFilter  = builder.Ne(r => r.Status, ReservationStatus.Canceled.ToString());
+        var combinedFilter = builder.And(dateFilter, locationFilter, notCanceledFilter);
 
-        // Execute the scan operation
-        var reservations = await context.ScanAsync<Reservation>(scanConditions, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
-
+        var reservations = await _collection.Find(combinedFilter).ToListAsync();
         return reservations;
     }
 
@@ -116,71 +107,59 @@ public class ReservationRepository(IDynamoDBContext context) : IReservationRepos
     {
         if (string.IsNullOrEmpty(email))
         {
-            return new List<Reservation>();
+            return Enumerable.Empty<Reservation>();
         }
 
-        // Since there's no GSI on userEmail yet, we need to scan with a filter
-        var scanCondition = new List<ScanCondition>
-    {
-        new ScanCondition("UserEmail", ScanOperator.Equal, email)
-    };
-
-        var reservations = await context.ScanAsync<Reservation>(scanCondition, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
+        var filter = Builders<Reservation>.Filter.Eq(r => r.UserEmail, email);
+        var reservations = await _collection.Find(filter).ToListAsync();
 
         return reservations;
     }
 
-    public async Task<IEnumerable<Reservation>> GetWaiterReservationsAsync(ReservationsQueryParametersDto queryParams, string waiterId)
+    public async Task<IEnumerable<Reservation>> GetWaiterReservationsAsync(ReservationsQueryParametersDto queryParams,
+        string waiterId)
     {
         if (string.IsNullOrEmpty(waiterId))
         {
             return new List<Reservation>();
         }
 
-        // Build scan conditions
-        var scanConditions = new List<ScanCondition>
-    {
-        new ScanCondition("WaiterId", ScanOperator.Equal, waiterId)
-    };
+        var builder = Builders<Reservation>.Filter;
+        var filters = new List<FilterDefinition<Reservation>>
+        {
+            builder.Eq(r => r.WaiterId, waiterId)
+        };
 
-        // Add optional filter conditions
         if (!string.IsNullOrEmpty(queryParams.Date))
         {
-            scanConditions.Add(new ScanCondition("Date", ScanOperator.Equal, queryParams.Date));
+            filters.Add(builder.Eq(r => r.Date, queryParams.Date));
         }
 
         if (!string.IsNullOrEmpty(queryParams.TimeFrom))
         {
-            scanConditions.Add(new ScanCondition("TimeFrom", ScanOperator.Equal, queryParams.TimeFrom));
+            filters.Add(builder.Eq(r => r.TimeFrom, queryParams.TimeFrom));
         }
 
         if (!string.IsNullOrEmpty(queryParams.TableId))
         {
-            scanConditions.Add(new ScanCondition("TableId", ScanOperator.Equal, queryParams.TableId));
+            filters.Add(builder.Eq(r => r.TableId, queryParams.TableId));
         }
 
-        // Execute scan
-        var reservations = await context.ScanAsync<Reservation>(scanConditions, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
+        var combinedFilter = builder.And(filters);
 
-        return reservations;
+        return await _collection.Find(combinedFilter).ToListAsync();
     }
 
     public async Task<Reservation> CancelReservationAsync(string reservationId)
     {
-        var reservation = await context.LoadAsync<Reservation>(reservationId);
-
-        if (reservation != null)
+        var filter = Builders<Reservation>.Filter
+            .Eq(r => r.Id, reservationId);
+        var update = Builders<Reservation>.Update.Set(r => r.Status, ReservationStatus.Canceled.ToString());
+        var options = new FindOneAndUpdateOptions<Reservation>
         {
-            reservation.Status = ReservationStatus.Canceled.ToString();
-            await context.SaveAsync(reservation);
-        }
+            ReturnDocument = ReturnDocument.After
+        };
 
-        return reservation!;
+        return await _collection.FindOneAndUpdateAsync(filter, update, options);
     }
 }

@@ -7,14 +7,9 @@ using SortDirection = Restaurant.Domain.Entities.Enums.SortDirection;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class DishRepository : IDishRepository
+public class DishRepository(IMongoDatabase database) : IDishRepository
 {
-    private readonly IMongoCollection<Dish> _dishes;
-
-    public DishRepository(IMongoDatabase database)
-    {
-        _dishes = database.GetCollection<Dish>("Dishes");
-    }
+    private readonly IMongoCollection<Dish> _dishes = database.GetCollection<Dish>("Dishes");
 
     public async Task<IEnumerable<Dish>> GetSpecialtyDishesByLocationAsync(string locationId)
     {

@@ -4,15 +4,10 @@ using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class LocationRepository
-    : ILocationRepository
+public class LocationRepository(IMongoDatabase database) : ILocationRepository
 {
-    private readonly IMongoCollection<Location> _collection;
+    private readonly IMongoCollection<Location> _collection = database.GetCollection<Location>("Locations");
 
-    public LocationRepository(IMongoDatabase database)
-    {
-        _collection = database.GetCollection<Location>("Locations");
-    }
     public async Task<IEnumerable<Location>> GetAllLocationsAsync()
     {
         return await _collection.Find(_ => true).ToListAsync();
