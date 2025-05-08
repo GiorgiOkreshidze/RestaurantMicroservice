@@ -31,6 +31,11 @@ namespace Restaurant.API.Controllers
         /// <returns>Report data based on the specified filters</returns>
         /// <response code="200">Returns the report data</response>
         /// <response code="400">If the request parameters are invalid</response>
+        /// <remarks>
+        /// StartDate and EndDate must be provided in the following format (YYYY-MM-DD).
+        /// Example: 2023-05-01 for May 1, 2023.
+        /// Other date formats will be rejected.
+        /// </remarks>
         [HttpGet]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetReports([FromQuery] ReportRequest request)
@@ -48,6 +53,11 @@ namespace Restaurant.API.Controllers
         /// <response code="400">If the request parameters are invalid</response>
         /// <response code="401">If the request is not authorized</response>
         /// <response code="415">If the requested format is not supported</response>
+        /// <remarks>
+        /// StartDate and EndDate must be provided in the following format (YYYY-MM-DD).
+        /// Example: 2023-05-01 for May 1, 2023.
+        /// Valid formats are: 'excel', 'pdf', or 'csv'.
+        /// </remarks>
         [HttpGet("downloads")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DownloadReport([FromQuery] ReportDownloadRequest request)

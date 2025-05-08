@@ -8,7 +8,6 @@ namespace Restaurant.Infrastructure.ExternalServices
     {
         public async Task<HttpResponseMessage> SendReportEmailAsync(string baseUrl)
         {
-            logger.LogInformation("Sending request to reporting service to send report email");
                 var endpoint = $"{baseUrl}/reports/send";
                 logger.LogInformation("sent to url {Endpoint}", endpoint);
                 var response = await httpClient.PostAsync(endpoint, null);
@@ -21,7 +20,7 @@ namespace Restaurant.Infrastructure.ExternalServices
                 return response;
         }
         
-        public async Task<IEnumerable<ReportResponse>> GetReportsAsync(string baseUrl, DateTime startDate, DateTime endDate, string? locationId)
+        public async Task<IEnumerable<ReportResponse>> GetReportsAsync(string baseUrl, string startDate, string endDate, string? locationId)
         {
             var queryParams = BuildQueryParams(startDate, endDate, locationId);
                 
@@ -46,7 +45,7 @@ namespace Restaurant.Infrastructure.ExternalServices
             return reports ?? [];
         }
 
-        public async Task<byte[]> DownloadReportAsync(string baseUrl, DateTime startDate, DateTime endDate, string? locationId, string format)
+        public async Task<byte[]> DownloadReportAsync(string baseUrl, string startDate, string endDate, string? locationId, string format)
         {
             var queryParams = BuildQueryParams(startDate, endDate, locationId, format);
           
@@ -69,15 +68,15 @@ namespace Restaurant.Infrastructure.ExternalServices
         }
         
         private static System.Collections.Specialized.NameValueCollection BuildQueryParams(
-            DateTime startDate, 
-            DateTime endDate, 
+            string startDate, 
+            string endDate, 
             string? locationId = null,
             string? format = null)
         {
             var queryParams = HttpUtility.ParseQueryString(string.Empty);
     
-            queryParams["startDate"] = startDate.ToString("yyyy-MM-dd");
-            queryParams["endDate"] = endDate.ToString("yyyy-MM-dd");
+            queryParams["startDate"] = startDate;
+            queryParams["endDate"] = endDate;
     
             if (!string.IsNullOrEmpty(locationId))
                 queryParams["locationId"] = locationId;
