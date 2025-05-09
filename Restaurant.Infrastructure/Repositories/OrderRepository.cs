@@ -1,26 +1,38 @@
-﻿using Amazon.DynamoDBv2.DataModel;
+﻿using MongoDB.Driver;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class OrderRepository(IDynamoDBContext context) : IOrderRepository
+public class OrderRepository : IOrderRepository
 {
+    private readonly IMongoCollection<Order> _collection;
+    
+    public OrderRepository(IMongoDatabase database)
+    {
+        _collection = database.GetCollection<Order>("Orders");
+        
+        var reservationIdIndexKeys = Builders<Order>.IndexKeys
+            .Ascending(r => r.ReservationId);
+        var reservationIdIndexOptions = new CreateIndexOptions
+        {
+            Name = "ReservationId_Index"
+        };
+        _collection.Indexes.CreateOneAsync(new CreateIndexModel<Order>(reservationIdIndexKeys, reservationIdIndexOptions));
+    }
+
     public async Task<Order?> GetOrderByReservationIdAsync(string reservationId)
     {
-        var query = context.QueryAsync<Order>(reservationId, new DynamoDBOperationConfig
-        {
-            IndexName = "ReservationIdIndex"
-        });
-
-        var orders = await query.GetNextSetAsync();
-        var order = orders.FirstOrDefault();
-        
-        return order;
+        return await _collection
+            .Find(order => order.ReservationId == reservationId)
+            .FirstOrDefaultAsync();
     }
     
     public async Task SaveAsync(Order order)
     {
-        await context.SaveAsync(order);
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, order.Id);
+        var options = new ReplaceOptions { IsUpsert = true };
+        
+        await _collection.ReplaceOneAsync(filter, order, options);
     }
 }
