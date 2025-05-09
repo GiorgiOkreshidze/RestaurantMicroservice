@@ -18,6 +18,7 @@ public class MongoDbSeeder
         await CreateIndexesAsync();
         await SeedCollectionAsync<Dish>("Dishes", GetDishSeedData());
         await SeedCollectionAsync<EmployeeInfo>("EmployeeInfo", GetEmployeeInfoSeedData());
+        await SeedCollectionAsync<RestaurantTable>("RestaurantTables", GetRestaurantTableSeedData());
     }
     
     private async Task CreateIndexesAsync()
@@ -25,6 +26,16 @@ public class MongoDbSeeder
         var dishCollection = _database.GetCollection<Dish>("Dishes");
         await CreateIndexAsync(dishCollection, d => d.LocationId, "LocationId_Index");
         await CreateIndexAsync(dishCollection, d => d.DishType, "DishType_Index");
+        
+        var tableCollection = _database.GetCollection<RestaurantTable>("RestaurantTables");
+        
+        // Compound index for the common query pattern (LocationId + Capacity)
+        var indexKeysDefinition = Builders<RestaurantTable>.IndexKeys
+            .Ascending(t => t.LocationId)
+            .Ascending(t => t.Capacity);
+        var indexOptions = new CreateIndexOptions { Name = "LocationId_Capacity_Index" };
+        var indexModel = new CreateIndexModel<RestaurantTable>(indexKeysDefinition, indexOptions);
+        await tableCollection.Indexes.CreateOneAsync(indexModel);
     }
     
     private async Task CreateIndexAsync<T>(IMongoCollection<T> collection, 
@@ -179,6 +190,37 @@ public class MongoDbSeeder
             Email = email,
             LocationId = locationId,
             Role = "Waiter",
+        };
+    }
+    
+    private List<RestaurantTable> GetRestaurantTableSeedData()
+    {
+        return new List<RestaurantTable>
+        {
+            CreateRestaurantTable("07095e7b-5cc9-40d2-a1d8-65aecdf5a2d9", "3", 6, "e1fcb3b4-bf68-4bcb-b9ba-eac917dafac7", "9 Abashidze Street"),
+            CreateRestaurantTable("dc80f954-df0c-457d-a938-26671f0dad47", "2", 6, "8c4fc44e-c1a5-42eb-9912-55aeb5111a99", "48 Rustaveli Avenue"),
+            CreateRestaurantTable("604acc18-d0f6-4d0d-af5c-b14a9aeaa559", "4", 10, "3a88c365-970b-4a7a-a206-bc5282b9b25f", "14 Baratashvili Street"),
+            CreateRestaurantTable("9f9e2205-dc13-438b-802e-5824ad1889eb", "2", 4, "e1fcb3b4-bf68-4bcb-b9ba-eac917dafac7", "9 Abashidze Street"),
+            CreateRestaurantTable("d7561080-cc9b-497d-ad38-88f264efbbfc", "2", 4, "3a88c365-970b-4a7a-a206-bc5282b9b25f", "14 Baratashvili Street"),
+            CreateRestaurantTable("146bc291-2926-4a0b-90a2-a54975d2cbba", "3", 10, "3a88c365-970b-4a7a-a206-bc5282b9b25f", "14 Baratashvili Street"),
+            CreateRestaurantTable("42f7291d-0997-4e74-8740-880533094881", "1", 6, "3a88c365-970b-4a7a-a206-bc5282b9b25f", "14 Baratashvili Street"),
+            CreateRestaurantTable("075312b0-6267-4dc6-ae96-28597231964e", "3", 2, "8c4fc44e-c1a5-42eb-9912-55aeb5111a99", "48 Rustaveli Avenue"),
+            CreateRestaurantTable("b8801e52-ba42-463e-b5cd-68c4604e223e", "4", 10, "e1fcb3b4-bf68-4bcb-b9ba-eac917dafac7", "9 Abashidze Street"),
+            CreateRestaurantTable("84405cfd-c7f5-4f67-9eef-496485065b1f", "4", 10, "8c4fc44e-c1a5-42eb-9912-55aeb5111a99", "48 Rustaveli Avenue"),
+            CreateRestaurantTable("c25f24b6-f305-4cd7-a6b6-54f126794c78", "1", 2, "e1fcb3b4-bf68-4bcb-b9ba-eac917dafac7", "9 Abashidze Street"),
+            CreateRestaurantTable("04ba5b37-8fbd-4f5f-8354-0b75078a790a", "1", 4, "8c4fc44e-c1a5-42eb-9912-55aeb5111a99", "48 Rustaveli Avenue")
+        };
+    }
+
+    private RestaurantTable CreateRestaurantTable(string id, string tableNumber, int capacity, string locationId, string locationAddress)
+    {
+        return new RestaurantTable
+        {
+            Id = id,
+            TableNumber = tableNumber,
+            Capacity = capacity,
+            LocationId = locationId,
+            LocationAddress = locationAddress
         };
     }
 }
