@@ -51,11 +51,10 @@ namespace Restaurant.Tests.ServiceTests
             // Create test data
             _preOrders = new List<PreOrder>
             {
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "PreOrder#order-1",
-                    PreOrderId = "order-1",
+                    Id = "order-1",
                     ReservationId = "res-1",
                     Status = "SUBMITTED",
                     CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
@@ -65,33 +64,30 @@ namespace Restaurant.Tests.ServiceTests
                     ReservationDate = "2023-05-15",
                     Items = new List<PreOrderItem>
                     {
-                        new PreOrderItem
+                        new()
                         {
-                            UserId = _userId,
-                            SortKey = "PreOrder#order-1#Item#1",
                             DishId = "dish-1",
                             DishName = "Pasta Carbonara",
                             Quantity = 2,
                             Price = 15.99m,
-                            DishImageUrl = "https://example.com/images/pasta.jpg"
+                            DishImageUrl = "https://example.com/images/pasta.jpg",
+                            Id = Guid.NewGuid().ToString()
                         },
-                        new PreOrderItem
+                        new()
                         {
-                            UserId = _userId,
-                            SortKey = "PreOrder#order-1#Item#2",
                             DishId = "dish-2",
                             DishName = "Caesar Salad",
                             Quantity = 1,
                             Price = 14.01m,
-                            DishImageUrl = "https://example.com/images/salad.jpg"
+                            DishImageUrl = "https://example.com/images/salad.jpg",
+                            Id = Guid.NewGuid().ToString()
                         }
                     }
                 },
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "PreOrder#order-2",
-                    PreOrderId = "order-2",
+                    Id = "order-2",
                     ReservationId = "res-2",
                     Status = "PENDING",
                     CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
@@ -101,20 +97,18 @@ namespace Restaurant.Tests.ServiceTests
                     ReservationDate = "2023-05-16",
                     Items = new List<PreOrderItem>
                     {
-                        new PreOrderItem
+                        new()
                         {
-                            UserId = _userId,
-                            SortKey = "PreOrder#order-2#Item#1",
+                            Id = Guid.NewGuid().ToString(),
                             DishId = "dish-3",
                             DishName = "Margherita Pizza",
                             Quantity = 1,
                             Price = 18.50m,
-                            DishImageUrl = "https://example.com/images/pizza.jpg"
+                            DishImageUrl = "https://example.com/images/pizza.jpg",
                         },
-                        new PreOrderItem
+                        new()
                         {
-                            UserId = _userId,
-                            SortKey = "PreOrder#order-2#Item#2",
+                            Id = Guid.NewGuid().ToString(),
                             DishId = "dish-4",
                             DishName = "Tiramisu",
                             Quantity = 2,
@@ -219,18 +213,19 @@ namespace Restaurant.Tests.ServiceTests
             // Arrange
             var preOrdersWithoutItems = new List<PreOrder>
             {
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "PreOrder#order-3",
                     ReservationId = "res-3",
                     Status = "SUBMITTED",
-                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
+                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z",
+                        CultureInfo.InvariantCulture),
                     ReservationDate = "2023-05-17",
                     TotalPrice = 0m,
                     Address = "789 Pine St",
                     TimeSlot = "19:00 - 20:00",
-                    Items = new List<PreOrderItem>()  // Empty items list
+                    Items = new List<PreOrderItem>(),
+                    Id = "order-3"
                 }
             };
 
@@ -259,10 +254,10 @@ namespace Restaurant.Tests.ServiceTests
             // Arrange
             var preOrderWithNulls = new List<PreOrder>
             {
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "PreOrder#order-4",
+                    Id = "order-4",
                     ReservationId = string.Empty,
                     Status = string.Empty,
                     CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
@@ -272,10 +267,9 @@ namespace Restaurant.Tests.ServiceTests
                     TimeSlot = string.Empty,
                     Items = new List<PreOrderItem>
                     {
-                        new PreOrderItem
+                        new()
                         {
-                            UserId = _userId,
-                            SortKey = "PreOrder#order-4#Item#1",
+                            Id = Guid.NewGuid().ToString(),
                             DishId = string.Empty,
                             DishName = string.Empty,
                             Quantity = 1,
@@ -388,18 +382,19 @@ namespace Restaurant.Tests.ServiceTests
             // Arrange
             var preOrderWithCustomSortKey = new List<PreOrder>
             {
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "PreOrder#complex-id-123-456", // Custom complex ID
                     ReservationId = "res-1",
                     Status = "SUBMITTED",
-                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
+                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z",
+                        CultureInfo.InvariantCulture),
                     ReservationDate = "2023-05-15",
                     TotalPrice = 45.99m,
                     Address = "123 Main St",
                     TimeSlot = "12:00 - 13:00",
-                    Items = new List<PreOrderItem>()
+                    Items = new List<PreOrderItem>(),
+                    Id = "complex-id-123-456"
                 }
             };
 
@@ -426,18 +421,19 @@ namespace Restaurant.Tests.ServiceTests
             // Arrange
             var preOrderWithBadSortKey = new List<PreOrder>
             {
-                new PreOrder
+                new()
                 {
                     UserId = _userId,
-                    SortKey = "InvalidPrefix-order-1", // Missing PreOrder# prefix
                     ReservationId = "res-1",
                     Status = "SUBMITTED",
-                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
+                    CreateDate = DateTime.Parse("2023-05-15T12:00:00Z",
+                        CultureInfo.InvariantCulture),
                     ReservationDate = "2023-05-15",
                     TotalPrice = 45.99m,
                     Address = "123 Main St",
                     TimeSlot = "12:00 - 13:00",
-                    Items = new List<PreOrderItem>()
+                    Items = new List<PreOrderItem>(),
+                    Id = "InvalidPrefix-order-1",
                 }
             };
 
@@ -621,8 +617,7 @@ namespace Restaurant.Tests.ServiceTests
             var existingPreOrder = new PreOrder
             {
                 UserId = _userId,
-                PreOrderId = "existing-id",
-                SortKey = "PreOrder#existing-id",
+                Id = "existing-id",
                 TimeSlot = futureTime,
                 ReservationDate = today,
                 ReservationId = "res-1",
@@ -788,9 +783,8 @@ namespace Restaurant.Tests.ServiceTests
             _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
                 .ReturnsAsync(new List<PreOrder> { new()
                     {
-                        PreOrderId = "new-order",
+                        Id = "new-order",
                         UserId = _userId,
-                        SortKey = "PreOrder#new-order",
                         ReservationId = "res-1",
                         Status = "Draft",
                         TimeSlot = "14:00 - 15:00",
@@ -826,8 +820,7 @@ namespace Restaurant.Tests.ServiceTests
             var existingPreOrder = new PreOrder
             {
                 UserId = _userId,
-                PreOrderId = existingId,
-                SortKey = "PreOrder#existing-id",
+                Id = existingId,
                 ReservationId = "res-old",
                 Status = "Draft",
                 TimeSlot = "16:00 - 17:00",
@@ -887,7 +880,7 @@ namespace Restaurant.Tests.ServiceTests
             // Verify repository methods were called
             _preOrderRepositoryMock.Verify(repo => repo.UpdatePreOrderAsync(It.Is<PreOrder>(p => 
                 p.UserId == _userId && 
-                p.PreOrderId == existingId && 
+                p.Id == existingId && 
                 p.ReservationId == "res-1" &&
                 p.TimeSlot == "14:00 - 15:00" &&
                 p.Items.Count == 1
@@ -917,8 +910,7 @@ namespace Restaurant.Tests.ServiceTests
             var existingPreOrder = new PreOrder
             {
                 UserId = _userId,
-                PreOrderId = "existing-id",
-                SortKey = "PreOrder#existing-id",
+                Id = "existing-id",
                 ReservationId = "res-1",
                 Status = "Draft",
                 TimeSlot = "14:00 - 15:00",
@@ -1005,9 +997,8 @@ namespace Restaurant.Tests.ServiceTests
             _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
                 .ReturnsAsync(new List<PreOrder> { new()
                     {
-                        PreOrderId = "new-order",
+                        Id = "new-order",
                         UserId = _userId,
-                        SortKey = "PreOrder#new-order",
                         ReservationId = "res-1",
                         Status = "Draft",
                         TimeSlot = "14:00 - 15:00",
@@ -1076,9 +1067,8 @@ namespace Restaurant.Tests.ServiceTests
             _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
                 .ReturnsAsync(new List<PreOrder> { new()
                     {
-                        PreOrderId = "new-order",
+                        Id = "new-order",
                         UserId = _userId,
-                        SortKey = "PreOrder#new-order",
                         ReservationId = "res-1",
                         Status = "Draft",
                         TimeSlot = "14:00 - 15:00",
