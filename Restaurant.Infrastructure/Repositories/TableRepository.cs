@@ -1,34 +1,26 @@
-﻿using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using MongoDB.Driver;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class TableRepository(IDynamoDBContext context) : ITableRepository
+public class TableRepository(IMongoDatabase database) : ITableRepository
 {
+    private readonly IMongoCollection<RestaurantTable> _tables = database.GetCollection<RestaurantTable>("RestaurantTables");
+
     public async Task<RestaurantTable?> GetTableById(string tableId)
     {
-        var table = await context.LoadAsync<RestaurantTable>(tableId);
-        return table ?? null;
+        var filter = Builders<RestaurantTable>.Filter.Eq(t => t.Id, tableId);
+        return await _tables.Find(filter).FirstOrDefaultAsync();
     }
 
     public async Task<IEnumerable<RestaurantTable>> GetTablesForLocationAsync(string locationId, int guests)
     {
-        // Since we don't have the appropriate GSI yet, we'll use a scan operation with filters
-        var scanConditions = new List<ScanCondition>
-    {
-        new ScanCondition("LocationId", ScanOperator.Equal, locationId),
-        new ScanCondition("Capacity", ScanOperator.GreaterThanOrEqual, guests)
-    };
+        var filter = Builders<RestaurantTable>.Filter.And(
+            Builders<RestaurantTable>.Filter.Eq(t => t.LocationId, locationId),
+            Builders<RestaurantTable>.Filter.Gte(t => t.Capacity, guests)
+        );
 
-        // Execute the scan operation
-        var tables = await context.ScanAsync<RestaurantTable>(scanConditions, new DynamoDBOperationConfig
-        {
-            Conversion = DynamoDBEntryConversion.V2
-        }).GetRemainingAsync();
-
-        return tables;
+        return await _tables.Find(filter).ToListAsync();
     }
 }
