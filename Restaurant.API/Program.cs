@@ -2,6 +2,7 @@ using Restaurant.Infrastructure;
 using Restaurant.Application;
 using Restaurant.API.Middleware;
 using FluentValidation;
+using Restaurant.API.BackgroundServices;
 using Restaurant.Application.DTOs.Auth;
 using Restaurant.API.Utilities;
 using Restaurant.Application.DTOs.Aws;
@@ -51,6 +52,7 @@ builder.Services.AddCors(options =>
                .AllowCredentials();
     });
 });
+builder.Services.AddHostedService<AwsCredentialsRefresher>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.AddSwaggerDoc();
