@@ -52,7 +52,8 @@ public static class DependencyInjection
             return client.GetDatabase(settings.DatabaseName);
         });
         services.AddScoped<MongoDbSeeder>();
-        
+        services.AddSingleton<AwsCredentialsFactory>();
+
         // Register services and repositories
         services.AddScoped<IImageService, ImageService>();
         services.AddScoped<ILocationRepository, LocationRepository>();
