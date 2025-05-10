@@ -51,7 +51,7 @@ public class EmailService(IUserRepository userRepository) : IEmailService
         sb.AppendLine("Thank you for your pre-order!");
         sb.AppendLine();
         sb.AppendLine("Order Details:");
-        sb.AppendLine($"- Order ID: {preOrder.PreOrderId}");
+        sb.AppendLine($"- Order ID: {preOrder.Id}");
         sb.AppendLine($"- Reservation Date: {preOrder.ReservationDate}");
         sb.AppendLine($"- Time: {preOrder.TimeSlot}");
         sb.AppendLine($"- Location: {preOrder.Address}");

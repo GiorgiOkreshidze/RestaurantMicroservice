@@ -1,11 +1,6 @@
 ﻿using AutoMapper;
 using Restaurant.Application.DTOs.PerOrders;
 using Restaurant.Domain.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Restaurant.Application.Profiles
 {
@@ -21,7 +16,7 @@ namespace Restaurant.Application.Profiles
                 .ForMember(dest => dest.DishImageUrl, opt => opt.MapFrom(src => src.DishImageUrl));
 
             CreateMap<PreOrder, PreOrderDto>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.PreOrderId))
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
                 .ForMember(dest => dest.ReservationId, opt => opt.MapFrom(src => src.ReservationId))
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
                 .ForMember(dest => dest.TimeSlot, opt => opt.MapFrom(src => src.TimeSlot))

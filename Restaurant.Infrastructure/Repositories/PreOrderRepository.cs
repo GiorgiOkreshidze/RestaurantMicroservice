@@ -1,176 +1,65 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using MongoDB.Driver;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class PreOrderRepository(IDynamoDBContext context) : IPreOrderRepository
+public class PreOrderRepository(IMongoDatabase database) : IPreOrderRepository
 {
+    private readonly IMongoCollection<PreOrder> _collection = database.GetCollection<PreOrder>("PreOrders");
+
     public async Task<List<PreOrder>> GetPreOrdersAsync(string userId, bool includeCancelled = false)
     {
-        var items = await QueryPreOrderItemsAsync(userId);
-        if (items.Count == 0)
-            return [];
-
-        var preOrderMap = ProcessPreOrderItems(items);
-
+        var filter = Builders<PreOrder>.Filter.Eq(p => p.UserId, userId);
         if (!includeCancelled)
         {
-            return preOrderMap.Values
-                .Where(p => p.Status != "Cancelled")
-                .ToList();
+            filter &= Builders<PreOrder>.Filter.Ne(p => p.Status, "Cancelled");
         }
-        
-        return preOrderMap.Values.ToList();
+
+        var preOrders = await _collection.Find(filter).ToListAsync();
+        return preOrders;
     }
 
     public async Task<PreOrder?> GetPreOrderByIdAsync(string userId, string preOrderId)
     {
-        var items = await QueryPreOrderItemsAsync(userId, preOrderId);
-        if (items.Count == 0)
-            return null;
+        var filter = Builders<PreOrder>.Filter.And(
+            Builders<PreOrder>.Filter.Eq(p => p.UserId, userId),
+            Builders<PreOrder>.Filter.Eq(p => p.Id, preOrderId)
+        );
 
-        var preOrderMap = ProcessPreOrderItems(items);
-        return preOrderMap.Values.FirstOrDefault();
+        return await _collection.Find(filter).FirstOrDefaultAsync();
     }
 
     public async Task<PreOrder> CreatePreOrderAsync(PreOrder preOrder)
     {
-        if (string.IsNullOrEmpty(preOrder.PreOrderId))
-            preOrder.SetSortKey(Guid.NewGuid().ToString("N"));
-        
+        if (string.IsNullOrEmpty(preOrder.Id))
+            preOrder.Id = Guid.NewGuid().ToString("N");
+
         if (preOrder.CreateDate == default)
             preOrder.CreateDate = DateTime.UtcNow;
-        
-        await context.SaveAsync(preOrder);
+
         foreach (var item in preOrder.Items)
         {
-            item.UserId = preOrder.UserId;
-            item.SetSortKey(preOrder.PreOrderId!, Guid.NewGuid().ToString("N"));
-            await context.SaveAsync(item);
+            item.Id = Guid.NewGuid().ToString("N");
         }
 
+        await _collection.InsertOneAsync(preOrder);
         return preOrder;
     }
 
     public async Task UpdatePreOrderAsync(PreOrder preOrder)
     {
-        var existingPreOrder = await GetPreOrderByIdAsync(preOrder.UserId, preOrder.PreOrderId!);
+        var existingPreOrder = await GetPreOrderByIdAsync(preOrder.UserId, preOrder.Id);
         if (existingPreOrder == null)
-            throw new InvalidOperationException($"Pre-order with ID {preOrder.PreOrderId} not found");
+            throw new InvalidOperationException($"Pre-order with ID {preOrder.Id} not found");
 
-        await context.SaveAsync(preOrder);
-
-        foreach (var item in existingPreOrder.Items)
-        {
-            await context.DeleteAsync(item);
-        }
-        
         foreach (var item in preOrder.Items)
         {
-            item.UserId = preOrder.UserId;
-            item.SetSortKey(preOrder.PreOrderId!, Guid.NewGuid().ToString("N"));
-            await context.SaveAsync(item);
-        }
-    }
-
-    private async Task<List<Document>> QueryPreOrderItemsAsync(string userId, string? preOrderId = null)
-    {
-        var prefix = preOrderId is null ? "PreOrder#" : $"PreOrder#{preOrderId}";
-        var queryConfig = new QueryOperationConfig
-        {
-            KeyExpression = new Expression
-            {
-                ExpressionStatement = "userId = :userId and begins_with(sk, :prefix)",
-                ExpressionAttributeValues = 
-                {
-                    { ":userId", userId },
-                    { ":prefix", prefix }
-                }
-            }
-        };
-
-        var table = context.GetTargetTable<PreOrder>();
-        var search = table.Query(queryConfig);
-        return await search.GetRemainingAsync();
-    }
-
-    private Dictionary<string, PreOrder> ProcessPreOrderItems(List<Document> items)
-    {
-        var preOrderMap = new Dictionary<string, PreOrder>();
-
-        foreach (var item in items)
-        {
-            var sk = item["sk"].AsString();
-
-            if (sk.Contains("#Item#"))
-            {
-                ProcessOrderItem(item, sk, preOrderMap);
-            }
-            else
-            {
-                ProcessOrder(item, sk, preOrderMap);
-            }
+            if (string.IsNullOrEmpty(item.Id))
+                item.Id = Guid.NewGuid().ToString("N");
         }
 
-        return preOrderMap;
+        var filter = Builders<PreOrder>.Filter.Eq(p => p.Id, preOrder.Id);
+        await _collection.ReplaceOneAsync(filter, preOrder);
     }
-
-    private void ProcessOrder(Document item, string sortKey, Dictionary<string, PreOrder> preOrderMap)
-    {
-        var preOrderId = sortKey.Replace("PreOrder#", "");
-
-        var preOrder = new PreOrder
-        {
-            UserId = item["userId"].AsString(),
-            SortKey = sortKey,
-            ReservationId = GetStringValue(item, "reservationId"),
-            Status = GetStringValue(item, "status"),
-            Address = GetStringValue(item, "address"),
-            CreateDate = GetDateValue(item, "createDate"),
-            ReservationDate = GetStringValue(item, "reservationDate"),
-            TimeSlot = GetStringValue(item, "timeSlot"),
-            TotalPrice = GetDecimalValue(item, "totalPrice"),
-            Items = []
-        };
-
-        preOrderMap[preOrderId] = preOrder;
-    }
-
-    private void ProcessOrderItem(Document item, string sortKey, Dictionary<string, PreOrder> preOrderMap)
-    {
-        var parts = sortKey.Split('#');
-        var preOrderId = parts[1];
-
-        if (!preOrderMap.ContainsKey(preOrderId))
-            return;
-
-        var preOrderItem = new PreOrderItem
-        {
-            UserId = item["userId"].AsString(),
-            SortKey = sortKey,
-            DishId = GetStringValue(item, "dishId"),
-            DishName = GetStringValue(item, "dishName"),
-            Quantity = GetIntValue(item, "quantity"),
-            Price = GetDecimalValue(item, "price"),
-            DishImageUrl = GetStringValue(item, "dishImageUrl"),
-            Notes = GetStringValue(item, "notes")
-        };
-
-        preOrderMap[preOrderId].Items.Add(preOrderItem);
-    }
-
-    // Helper methods to safely extract values from Document
-    private string GetStringValue(Document item, string key) =>
-        item.ContainsKey(key) ? item[key].AsString() : string.Empty;
-
-    private int GetIntValue(Document item, string key) =>
-        item.ContainsKey(key) ? (int)item[key].AsDecimal() : 0;
-
-    private decimal GetDecimalValue(Document item, string key) =>
-        item.ContainsKey(key) ? item[key].AsDecimal() : 0;
-
-    private DateTime GetDateValue(Document item, string key) =>
-        item.ContainsKey(key) ? DateTime.Parse(item[key].AsString()) : DateTime.MinValue;
 }
