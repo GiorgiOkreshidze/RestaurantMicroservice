@@ -43,12 +43,12 @@ namespace Restaurant.API.Middleware
                         unauthorizedException,
                         "Unauthorized access attempt: {Path}",
                         context.Request.Path);
+                    
                     statusCode = HttpStatusCode.Unauthorized;
                     problem = new ErrorResponse
                     {
                         Title = unauthorizedException.Message,
                         Status = (int)statusCode,
-                        Detail = unauthorizedException.InnerException?.Message,
                         Type = nameof(UnauthorizedException),
                     };
                     break;
@@ -59,7 +59,6 @@ namespace Restaurant.API.Middleware
                     {
                         Title = badRequestException.Message,
                         Status = (int)statusCode,
-                        Detail = badRequestException.InnerException?.Message,
                         Type = nameof(BadRequestException),
                         Errors = badRequestException.ValidationErrors ?? new Dictionary<string, string[]>(),
                     };
@@ -71,7 +70,6 @@ namespace Restaurant.API.Middleware
                     {
                         Title = notFound.Message,
                         Status = (int)statusCode,
-                        Detail = notFound.InnerException?.Message,
                         Type = nameof(NotFoundException),
                     };
                     break;
@@ -82,7 +80,6 @@ namespace Restaurant.API.Middleware
                     {
                         Title = conflictException.Message,
                         Status = (int)statusCode,
-                        Detail = conflictException.InnerException?.Message,
                         Type = nameof(ConflictException),
                     };
                     break;
@@ -90,10 +87,9 @@ namespace Restaurant.API.Middleware
                     logger.LogError(exception, "Unhandled exception occurred");
                     problem = new ErrorResponse
                     {
-                        Title = exception.Message,
+                        Title = "An unexpected error occurred",
                         Status = (int)statusCode,
-                        Detail = exception.StackTrace,
-                        Type = nameof(HttpStatusCode.InternalServerError),
+                        Type = "ServerError",
                     };
                     break;
             }
