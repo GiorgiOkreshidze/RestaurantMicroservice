@@ -6,6 +6,7 @@ using Restaurant.API.BackgroundServices;
 using Restaurant.Application.DTOs.Auth;
 using Restaurant.API.Utilities;
 using Restaurant.Application.DTOs.Aws;
+using Restaurant.Application.DTOs.RabbitMq;
 using Restaurant.Application.DTOs.Reports;
 using Restaurant.Infrastructure.ExternalServices;
 
@@ -34,6 +35,15 @@ builder.Services.Configure<AwsSettings>(options => {
 
 builder.Services.Configure<ReportSettings>(options => {
     options.BaseUrl = Environment.GetEnvironmentVariable("BASE_URL") ?? throw new ArgumentNullException(nameof(ReportSettings.BaseUrl), "BASE_URL environment variable is not set");
+});
+
+builder.Services.Configure<RabbitMqSettings>(options => {
+    options.HostName = Environment.GetEnvironmentVariable("HOST_NAME") ?? throw new ArgumentNullException(nameof(RabbitMqSettings.HostName), "HOST_NAME environment variable is not set");
+    options.UserName = Environment.GetEnvironmentVariable("USER_NAME") ?? throw new ArgumentNullException(nameof(RabbitMqSettings.UserName), "USER_NAME environment variable is not set");
+    options.Password = Environment.GetEnvironmentVariable("PASSWORD") ?? throw new ArgumentNullException(nameof(RabbitMqSettings.Password), "PASSWORD environment variable is not set");
+    
+    if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out int port))
+        options.Port = port;
 });
 
 builder.Services.AddValidatorsFromAssembly(

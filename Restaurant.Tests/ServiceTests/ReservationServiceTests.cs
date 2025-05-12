@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
 using Restaurant.Application.DTOs.Aws;
+using Restaurant.Application.DTOs.RabbitMq;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
 using Restaurant.Application.DTOs.Users;
@@ -31,8 +32,7 @@ public class ReservationServiceTests
     private IReservationService _reservationService = null!;
     private Mock<ITokenService> _tokenService = null!;
     private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
-    private Mock<IAmazonSQS> _sqsClientMock = null!;
-    private Mock<IOptions<AwsSettings>> _awsOptionsMock = null!;
+    private Mock<IOptions<RabbitMqSettings>> _rabbitMqOptionsMock = null!;
     private IMapper _mapper = null!;
     
     private ClientReservationRequest _request = null!;
@@ -53,8 +53,7 @@ public class ReservationServiceTests
         _feedbackRepository = new Mock<IFeedbackRepository>();
         _tokenService = new Mock<ITokenService>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
-        _sqsClientMock = new Mock<IAmazonSQS>();
-        _awsOptionsMock = new Mock<IOptions<AwsSettings>>();
+        _rabbitMqOptionsMock = new Mock<IOptions<RabbitMqSettings>>();
         
         
         var config = new MapperConfiguration(cfg =>
@@ -78,8 +77,7 @@ public class ReservationServiceTests
             _feedbackRepository.Object,
             _validatorFilterMock.Object,
             _tokenService.Object,
-            _sqsClientMock.Object,
-            _awsOptionsMock.Object,
+            _rabbitMqOptionsMock.Object,
             _mapper);
         
         _request = new ClientReservationRequest
@@ -904,8 +902,7 @@ public class ReservationServiceTests
             _feedbackRepository.Object,
             _validatorFilterMock.Object,
             _tokenService.Object,
-            _sqsClientMock.Object,
-            _awsOptionsMock.Object,
+            _rabbitMqOptionsMock.Object,
             mapper);
 
         // Act
@@ -1143,124 +1140,119 @@ public class ReservationServiceTests
 
     #region CompleteReservation
 
-[Test]
-public async Task CompleteReservationAsync_ReservationIdCompletedSuccessfully_ReturnsQrCodeResponse()
-{
-    // Arrange
-    var reservation = new Reservation
+    [Test]
+    public async Task CompleteReservationAsync_ReservationIdCompletedSuccessfully_ReturnsQrCodeResponse()
     {
-        Id = "res-1",
-        Date = "2023-05-01",
-        TimeFrom = "13:30",
-        TimeTo = "15:00",
-        WaiterId = "waiter-1",
-        Status = "Reserved",
-        LocationAddress = "Main Street 123",
-        GuestsNumber = "3",
-        LocationId = "loc-1",
-        PreOrder = "Not implemented",
-        TableId = "table-2",
-        TableCapacity = "6",
-        TableNumber = "T2",
-        TimeSlot = "18:00 - 20:00",
-        UserEmail = "userEmail",
-        UserInfo = "John Doe",
-        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-        ClientTypeString = "VISITOR"
-    };
-
-    var waiter = new User
-    {
-        Id = "waiter-1",
-        Email = "waiter@example.com",
-        FirstName = "John",
-        LastName = "Doe",
-        LocationId = "loc-1",
-        ImgUrl = "null",
-        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-    };
-
-    var feedbacks = new List<Feedback>
-    {
-        new Feedback { 
-            Id = "feed-1",
+        // Arrange
+        var reservation = new Reservation
+        {
+            Id = "res-1",
+            Date = "2023-05-01",
+            TimeFrom = "13:30",
+            TimeTo = "15:00",
+            WaiterId = "waiter-1",
+            Status = "Reserved",
+            LocationAddress = "Main Street 123",
+            GuestsNumber = "3",
             LocationId = "loc-1",
-            Type = "SERVICE_QUALITY",
-            TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
-            Rate = 3,
-            Comment = "EXCELLENT!",
-            UserName = "Joe Smith",
-            UserAvatarUrl = "https://example.com/avatar2.jpg",
-            Date = "2025-04-23T12:00:00Z",
-            ReservationId = "res-456",
-            LocationIdType = $"loc-1#SERVICE_QUALITY",
-            ReservationIdType = "res-1#SERVICE_QUALITY"
-        },
-        new Feedback { 
-            Id = "feed-2",
+            PreOrder = "Not implemented",
+            TableId = "table-2",
+            TableCapacity = "6",
+            TableNumber = "T2",
+            TimeSlot = "18:00 - 20:00",
+            UserEmail = "userEmail",
+            UserInfo = "John Doe",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ClientTypeString = "VISITOR"
+        };
+
+        var waiter = new User
+        {
+            Id = "waiter-1",
+            Email = "waiter@example.com",
+            FirstName = "John",
+            LastName = "Doe",
             LocationId = "loc-1",
-            Type = "SERVICE_QUALITY",
-            TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
-            Rate = 4,
-            Comment = "EXCELLENT!",
-            UserName = "Jane Smith",
-            UserAvatarUrl = "https://example.com/avatar2.jpg",
-            Date = "2025-04-23T12:00:00Z",
-            ReservationId = "res-456",
-            LocationIdType = $"loc-1#SERVICE_QUALITY",
-            ReservationIdType = "res-1#SERVICE_QUALITY"
-        }
-    };
+            ImgUrl = "null",
+            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        };
 
-    const string mockToken = "mock-jwt-token";
-    
-    _reservationRepositoryMock
-        .Setup(r => r.GetReservationByIdAsync(reservation.Id))
-        .ReturnsAsync(reservation);
+        var feedbacks = new List<Feedback>
+        {
+            new Feedback
+            {
+                Id = "feed-1",
+                LocationId = "loc-1",
+                Type = "SERVICE_QUALITY",
+                TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
+                Rate = 3,
+                Comment = "EXCELLENT!",
+                UserName = "Joe Smith",
+                UserAvatarUrl = "https://example.com/avatar2.jpg",
+                Date = "2025-04-23T12:00:00Z",
+                ReservationId = "res-456",
+                LocationIdType = $"loc-1#SERVICE_QUALITY",
+                ReservationIdType = "res-1#SERVICE_QUALITY"
+            },
+            new Feedback
+            {
+                Id = "feed-2",
+                LocationId = "loc-1",
+                Type = "SERVICE_QUALITY",
+                TypeDate = "SERVICE_QUALITY#2025-04-23T12:00:00Z",
+                Rate = 4,
+                Comment = "EXCELLENT!",
+                UserName = "Jane Smith",
+                UserAvatarUrl = "https://example.com/avatar2.jpg",
+                Date = "2025-04-23T12:00:00Z",
+                ReservationId = "res-456",
+                LocationIdType = $"loc-1#SERVICE_QUALITY",
+                ReservationIdType = "res-1#SERVICE_QUALITY"
+            }
+        };
 
-    _reservationRepositoryMock
-        .Setup(r => r.UpsertReservationAsync(It.IsAny<Reservation>()))
-        .ReturnsAsync(reservation);
+        const string mockToken = "mock-jwt-token";
 
-    _userRepositoryMock
-        .Setup(r => r.GetUserByIdAsync(reservation.WaiterId!))
-        .ReturnsAsync(waiter);
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservation.Id))
+            .ReturnsAsync(reservation);
 
-    _feedbackRepository
-        .Setup(r => r.GetServiceFeedbacks(reservation.Id))
-        .ReturnsAsync(feedbacks);
-    
-    _tokenService
-        .Setup(t => t.GenerateAnonymousFeedbackToken(reservation.Id))
-        .Returns(mockToken);
+        _reservationRepositoryMock
+            .Setup(r => r.UpsertReservationAsync(It.IsAny<Reservation>()))
+            .ReturnsAsync(reservation);
 
-    var awsSettings = new AwsSettings { SqsQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789012/test-queue" };
-    _awsOptionsMock.Setup(x => x.Value).Returns(awsSettings);
+        _userRepositoryMock
+            .Setup(r => r.GetUserByIdAsync(reservation.WaiterId!))
+            .ReturnsAsync(waiter);
 
-    _sqsClientMock
-        .Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
-        .ReturnsAsync(new SendMessageResponse { MessageId = "test-message-id" });
+        _feedbackRepository
+            .Setup(r => r.GetServiceFeedbacks(reservation.Id))
+            .ReturnsAsync(feedbacks);
 
-    // Act
-    var result = await _reservationService.CompleteReservationAsync(reservation.Id);
+        _tokenService
+            .Setup(t => t.GenerateAnonymousFeedbackToken(reservation.Id))
+            .Returns(mockToken);
 
-    // Assert
-    Assert.That(result, Is.Not.Null);
-    Assert.That(result.QrCodeImageBase64, Is.Not.Null);
-    Assert.That(result.FeedbackUrl, Is.Not.Null);
-    Assert.That(result.FeedbackUrl, Does.Contain(mockToken));
-    
-    _reservationRepositoryMock.Verify(r => r.GetReservationByIdAsync(reservation.Id), Times.Once);
-    _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.Is<Reservation>(r => 
-        r.Status == ReservationStatus.Finished.ToString() && 
-        r.FeedbackToken == mockToken)), Times.AtLeastOnce);
-    _userRepositoryMock.Verify(r => r.GetUserByIdAsync(reservation.WaiterId!), Times.Once);
-    _feedbackRepository.Verify(r => r.GetServiceFeedbacks(reservation.Id), Times.AtLeastOnce);
-    _tokenService.Verify(t => t.GenerateAnonymousFeedbackToken(reservation.Id), Times.Once);
-    _sqsClientMock.Verify(s => s.SendMessageAsync(
-        It.Is<SendMessageRequest>(req => req.QueueUrl == awsSettings.SqsQueueUrl),
-        It.IsAny<CancellationToken>()), Times.Once);
-}
+        var rabbitMqSettings = new RabbitMqSettings { HostName = "localhost", Port = 5672, UserName = "guest", Password = "guest" };
+        _rabbitMqOptionsMock.Setup(x => x.Value).Returns(rabbitMqSettings);
+
+        // Act
+        var result = await _reservationService.CompleteReservationAsync(reservation.Id);
+
+        // Assert
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.QrCodeImageBase64, Is.Not.Null);
+        Assert.That(result.FeedbackUrl, Is.Not.Null);
+        Assert.That(result.FeedbackUrl, Does.Contain(mockToken));
+
+        _reservationRepositoryMock.Verify(r => r.GetReservationByIdAsync(reservation.Id), Times.Once);
+        _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.Is<Reservation>(r =>
+            r.Status == ReservationStatus.Finished.ToString() &&
+            r.FeedbackToken == mockToken)), Times.AtLeastOnce);
+        _userRepositoryMock.Verify(r => r.GetUserByIdAsync(reservation.WaiterId!), Times.Once);
+        _feedbackRepository.Verify(r => r.GetServiceFeedbacks(reservation.Id), Times.AtLeastOnce);
+        _tokenService.Verify(t => t.GenerateAnonymousFeedbackToken(reservation.Id), Times.Once);
+    }
     
     [Test]
     public void CompleteReservation_ReservationIsNull_ThrowsNotFoundException()
@@ -1318,7 +1310,6 @@ public async Task CompleteReservationAsync_ReservationIdCompletedSuccessfully_Re
         // Verify that UpsertReservationAsync was not called
         _reservationRepositoryMock.Verify(r => r.UpsertReservationAsync(It.IsAny<Reservation>()), Times.Never);
         // Verify that SendMessageAsync was not called
-        _sqsClientMock.Verify(s => s.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #endregion

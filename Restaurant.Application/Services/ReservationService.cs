@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using AutoMapper;
 using FluentValidation;
 using Restaurant.Application.DTOs.Reservations;
@@ -11,12 +12,11 @@ using Restaurant.Domain.DTOs;
 using Restaurant.Domain.Entities;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
-using Amazon.SQS.Model;
-using Amazon.SQS;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Restaurant.Application.DTOs.Aws;
 using QRCoder;
+using RabbitMQ.Client;
+using Restaurant.Application.DTOs.RabbitMq;
 using Restaurant.Application.DTOs.Reports;
 
 namespace Restaurant.Application.Services;
@@ -30,8 +30,7 @@ public class ReservationService(
     IFeedbackRepository feedbackRepository,
     IValidator<FilterParameters> filterValidator,
     ITokenService tokenService,
-    IAmazonSQS amazonSqsClient,
-    IOptions<AwsSettings> awsSettings,
+    IOptions<RabbitMqSettings> rabbitMqSettings,
     IMapper mapper) : IReservationService
 {
     public async Task<IEnumerable<AvailableTableDto>> GetAvailableTablesAsync(FilterParameters filterParameters)
@@ -155,7 +154,7 @@ public class ReservationService(
                           ?? throw new NotFoundException("Reservation", reservationId);
 
         var report = await BuildReservationReport(reservation);
-        await SendEventToSqs("reservation", report);
+        await SendEventToRabbitMq("reservation", report);
 
         if (reservation.ClientType == ClientType.VISITOR)
         {
@@ -509,29 +508,26 @@ public class ReservationService(
         }
     }
     
-    private async Task SendEventToSqs<T>(string eventType, T payload)
+    private async Task SendEventToRabbitMq<T>(string eventType, T payload)
     {
-        try
+        var factory = new ConnectionFactory
         {
-            var messageBody = JsonSerializer.Serialize(new
-            {
-                eventType,
-                payload
-            });
+            HostName = rabbitMqSettings.Value.HostName,
+            Port = rabbitMqSettings.Value.Port,
+            UserName = rabbitMqSettings.Value.UserName,
+            Password = rabbitMqSettings.Value.Password
+        };
+
+        var connection = await factory.CreateConnectionAsync();
+        var channel = await connection.CreateChannelAsync();
+
+        var body = JsonSerializer.Serialize(new { eventType, payload });
+        var messageBytes = Encoding.UTF8.GetBytes(body);
+
+        await channel.QueueDeclareAsync(queue: "report-events", durable: true, exclusive: false, autoDelete: false, arguments: null);
+        await channel.BasicPublishAsync(exchange: "", routingKey: "report-events", body: messageBytes);
+    }
     
-            var sendMessageRequest = new SendMessageRequest
-            {
-                QueueUrl = awsSettings.Value.SqsQueueUrl,
-                MessageBody = messageBody
-            };
-    
-            await amazonSqsClient.SendMessageAsync(sendMessageRequest);
-        }
-        catch (AmazonSQSException ex)
-        {
-            throw new ConflictException($"Error communicating with SQS: {ex.Message}");
-        }
-    } 
     #endregion
 
     #region Helper Methods For Available Tables
