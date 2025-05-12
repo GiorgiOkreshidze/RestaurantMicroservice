@@ -85,7 +85,7 @@ public class ReservationServiceTests
         _request = new ClientReservationRequest
         {
             Id = null,
-            Date = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            Date = "2026-05-01",
             GuestsNumber = "2",
             LocationId = "loc-1",
             TableId = "table-1",
