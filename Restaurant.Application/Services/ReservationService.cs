@@ -16,8 +16,6 @@ using Amazon.SQS;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Restaurant.Application.DTOs.Aws;
-using Restaurant.Infrastructure.Repositories;
-using Amazon.DynamoDBv2.Model;
 using QRCoder;
 using Restaurant.Application.DTOs.Reports;
 
@@ -52,12 +50,17 @@ public class ReservationService(
 
         return tablesWithSlots;
     }
-
+ 
     public async Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
     {
+        if (!BeValidTimeNotInPast(reservationRequest.Date, reservationRequest.TimeFrom))
+        {
+            throw new BadRequestException("Cannot create a reservation in the past");
+        }
+        
         ValidateTimeSlot(reservationRequest);
         var location = await locationRepository.GetLocationByIdAsync(reservationRequest.LocationId) ?? throw new NotFoundException("Location", reservationRequest.LocationId);
-        var table = await GetAndValidateTable(reservationRequest.TableId, reservationRequest.GuestsNumber);
+        var table = await GetAndValidateTable(reservationRequest.TableId, reservationRequest.GuestsNumber, reservationRequest.LocationId);
 
         var reservationDto = new Reservation
         {
@@ -99,7 +102,6 @@ public class ReservationService(
             reservations = await reservationRepository.GetWaiterReservationsAsync(queryParamsDto, userId);
         }
 
-        // Map domain entities to response DTOs
         return mapper.Map<IEnumerable<ReservationResponseDto>>(reservations);
     }
 
@@ -268,6 +270,18 @@ public class ReservationService(
     }
 
     #region Helper Methods For Reservation
+    
+    private bool BeValidTimeNotInPast(string date, string time)
+    {
+        if (DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var parsedDate) &&
+            TimeSpan.TryParseExact(time, "hh\\:mm", CultureInfo.InvariantCulture, out var parsedTime))
+        {
+            var reservationDateTime = parsedDate.Add(parsedTime);
+            return reservationDateTime >= DateTime.UtcNow;
+        }
+        return true;
+    }
     private async Task<ClientReservationResponse> ProcessWaiterReservation(
         WaiterReservationRequest request,
         Reservation reservation,
@@ -406,7 +420,7 @@ public class ReservationService(
         }
     }
 
-    private async Task<RestaurantTableDto> GetAndValidateTable(string tableId, string guestsNumber)
+    private async Task<RestaurantTableDto> GetAndValidateTable(string tableId, string guestsNumber, string locationId)
     {
         var table = await tableRepository.GetTableById(tableId);
 
@@ -414,7 +428,12 @@ public class ReservationService(
         {
             throw new NotFoundException($"Table with ID {tableId} not found.");
         }
-    
+     
+        if (table.LocationId != locationId)
+        {
+            throw new ConflictException($"Table with ID {tableId} does not belong to location {locationId}.");
+        }
+
         if (!int.TryParse(guestsNumber, out int guests))
         {
             throw new ConflictException("Invalid number format for GuestsNumber.");
@@ -428,7 +447,7 @@ public class ReservationService(
                 $"Table with ID {tableId} cannot accommodate {guestsNumber} guests. " +
                 $"Maximum capacity: {table.Capacity}.");
         }
-
+       
         return mapper.Map<RestaurantTableDto>(table);
     }
 
