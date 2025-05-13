@@ -2,6 +2,7 @@
 using AutoMapper;
 using Restaurant.Application.DTOs.PerOrders;
 using Restaurant.Application.DTOs.PerOrders.Request;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
@@ -19,7 +20,7 @@ public class PreOrderService(
     {
         if (string.IsNullOrEmpty(userId))
         {
-            throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            throw new BadRequestException("User ID cannot be null or empty");
         }
 
         var preOrders = await preOrderRepository.GetPreOrdersAsync(userId);
@@ -43,7 +44,11 @@ public class PreOrderService(
     {
         ValidateInputParameters(userId, request);
         await ValidateReservation(request.ReservationId);
-        await ValidateDishItems(request.DishItems);
+
+        if (request.DishItems.Count != 0)
+        {
+            await ValidateDishItems(request.DishItems);
+        }
 
         var existingPreOrder = await GetAndValidateExistingPreOrder(userId, request);
         var totalPrice = Utils.CalculateTotalPrice(
@@ -73,13 +78,16 @@ public class PreOrderService(
     private static void ValidateInputParameters(string userId, UpsertPreOrderRequest request)
     {
         if (string.IsNullOrEmpty(userId))
-            throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            throw new BadRequestException("User ID cannot be null or empty");
 
         if (string.IsNullOrEmpty(request.ReservationId))
-            throw new ArgumentException("Reservation ID cannot be null or empty");
-
-        if (request.DishItems == null || !request.DishItems.Any())
-            throw new ArgumentException("Order must contain at least one dish item");
+            throw new BadRequestException("Reservation ID cannot be null or empty");
+    
+        var validStatuses = new[] { "New", "Submitted", "Cancelled", "Finished" };
+        if (string.IsNullOrEmpty(request.Status))
+            throw new BadRequestException("Status cannot be null or empty");
+        if (!validStatuses.Contains(request.Status))
+            throw new BadRequestException($"Invalid status '{request.Status}'. Status must be one of: {string.Join(", ", validStatuses)}");
     }
 
     private async Task<PreOrder?> GetAndValidateExistingPreOrder(string userId, UpsertPreOrderRequest request)
@@ -90,10 +98,10 @@ public class PreOrderService(
         var existingPreOrder = await preOrderRepository.GetPreOrderByIdAsync(userId, request.Id);
 
         if (existingPreOrder == null)
-            throw new InvalidOperationException($"Pre-order with ID {request.Id} does not exist");
+            throw new NotFoundException($"Pre-order with ID {request.Id} does not exist");
 
         if (IsWithinCutoffTime(existingPreOrder.TimeSlot, existingPreOrder.ReservationDate))
-            throw new InvalidOperationException("Cannot modify pre-order within 30 minutes of reservation time");
+            throw new BadRequestException("Reservations can only be modified before 30 minutes of start time");
 
         return existingPreOrder;
     }
@@ -102,17 +110,21 @@ public class PreOrderService(
     {
         bool reservationExists = await reservationRepository.ReservationExistsAsync(reservationId);
         if (!reservationExists)
-            throw new InvalidOperationException($"Reservation with ID {reservationId} does not exist");
+            throw new NotFoundException($"Reservation with ID {reservationId} does not exist");
     }
 
     private async Task ValidateDishItems(List<DishItemDto> dishItems)
     {
+        var emptyDishIds = dishItems.Where(item => string.IsNullOrEmpty(item.DishId)).ToList();
+        if (emptyDishIds.Any())
+            throw new BadRequestException("DishId should not be empty");
+        
         var dishIds = dishItems.Select(item => item.DishId).ToList();
         var existingDishes = await dishRepository.GetDishesByIdsAsync(dishIds);
 
         var invalidDishIds = dishIds.Except(existingDishes.Select(d => d.Id)).ToList();
         if (invalidDishIds.Any())
-            throw new InvalidOperationException(
+            throw new NotFoundException(
                 $"The following dish IDs do not exist: {string.Join(", ", invalidDishIds)}");
     }
 
@@ -181,7 +193,7 @@ public class PreOrderService(
             }
             else
             {
-                throw new InvalidOperationException($"PreOrder with ID {preOrderId} does not exist");
+                throw new NotFoundException($"PreOrder with ID {preOrderId} does not exist");
             }
         }
     }
