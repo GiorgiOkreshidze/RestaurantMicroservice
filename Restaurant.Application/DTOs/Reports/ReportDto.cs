@@ -14,7 +14,15 @@
 
         public required decimal HoursWorked { get; set; }
 
+        public required string OrderId { get; set; }
+        
+        public required decimal OrderRevenue { get; set; }
+
         public required double AverageServiceFeedback { get; set; }
+        
+        public required double AverageCuisineFeedback { get; set; }
+        
+        public required int MinimumCuisineFeedback { get; set; }
 
         public required int MinimumServiceFeedback { get; set; }
     }
