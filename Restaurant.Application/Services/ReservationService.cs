@@ -53,6 +53,12 @@ public class ReservationService(
  
     public async Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
     {
+        var reservationDoesNotExist = !string.IsNullOrEmpty(reservationRequest.Id) && !await reservationRepository.ReservationExistsAsync(reservationRequest.Id);
+        if (reservationDoesNotExist)
+        {
+            throw new NotFoundException("Reservation", reservationRequest.Id!);
+        }
+        
         if (!BeValidTimeNotInPast(reservationRequest.Date, reservationRequest.TimeFrom))
         {
             throw new BadRequestException("Cannot create a reservation in the past");
@@ -69,7 +75,7 @@ public class ReservationService(
             GuestsNumber = reservationRequest.GuestsNumber,
             LocationAddress = location.Address,
             LocationId = location.Id,
-            PreOrder = "NOT IMPLEMENTED YET",
+            PreOrder = "0",
             TableCapacity = table.Capacity,
             Status = ReservationStatus.Reserved.ToString(),
             TableId = reservationRequest.TableId,
@@ -413,7 +419,7 @@ public class ReservationService(
 
         if (DateTime.UtcNow > reservationDateTime.AddMinutes(-30))
         {
-            throw new ConflictException("Reservations cannot be modified within 30 minutes of start time");
+            throw new ConflictException("Reservations can be modified up to 30 minutes before start time");
         }
     }
 
