@@ -15,5 +15,7 @@ namespace Restaurant.Infrastructure.Interfaces
         public Task UpsertFeedbackByReservationAndTypeAsync(Feedback feedback);
 
         public Task<IEnumerable<Feedback>> GetServiceFeedbacks(string reservationId);
+        
+        public Task<IEnumerable<Feedback>> GetCuisineFeedbacks(string reservationId);
     }
 }

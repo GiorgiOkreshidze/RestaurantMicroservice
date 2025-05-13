@@ -27,7 +27,16 @@ public class OrderRepository : IOrderRepository
             .Find(order => order.ReservationId == reservationId)
             .FirstOrDefaultAsync();
     }
-    
+
+    public async Task<decimal> GetOrderRevenueByReservationIdAsync(string reservationId)
+    {
+        var order = await _collection
+            .FindAsync(order => order.ReservationId == reservationId).Result
+            .FirstOrDefaultAsync();
+
+        return order?.TotalPrice ?? 0m;
+    }
+
     public async Task SaveAsync(Order order)
     {
         var filter = Builders<Order>.Filter.Eq(o => o.Id, order.Id);

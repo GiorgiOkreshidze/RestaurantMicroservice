@@ -23,6 +23,7 @@ namespace Restaurant.Application.Services;
 
 public class ReservationService(
     IReservationRepository reservationRepository,
+    IOrderRepository orderRepository,
     ILocationRepository locationRepository,
     IUserRepository userRepository,
     ITableRepository tableRepository,
@@ -225,9 +226,18 @@ public class ReservationService(
             Waiter = waiter.FullName,
             WaiterEmail = waiter.Email,
             HoursWorked = hoursWorked,
+            OrderId = orderRepository.GetOrderByReservationIdAsync(reservation.Id).Id.ToString(),
+            OrderRevenue = await GetOrderRevenue(reservation.Id),
             AverageServiceFeedback = await GetAverageServiceFeedback(reservation.Id),
+            AverageCuisineFeedback = await GetAverageCuisineFeedback(reservation.Id),
+            MinimumCuisineFeedback = await GetMinimumCuisineFeedback(reservation.Id),
             MinimumServiceFeedback = await GetMinimumServiceFeedback(reservation.Id)
         };
+    }
+
+    private async Task<decimal> GetOrderRevenue(string reservationId)
+    {
+        return await orderRepository.GetOrderRevenueByReservationIdAsync(reservationId);
     }
     
     private static decimal CalculateHoursWorked(string timeFrom, string timeTo)
@@ -256,10 +266,33 @@ public class ReservationService(
 
         return feedbacks!.Min(f => f.Rate);
     }
+    
+    private async Task<int> GetMinimumCuisineFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetCuisineFeedbacks(id);
+
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
+
+        return feedbacks!.Min(f => f.Rate);
+    }
 
     private async Task<double> GetAverageServiceFeedback(string id)
     {
         var feedbacks = await feedbackRepository.GetServiceFeedbacks(id);
+        if (feedbacks == null || !feedbacks.Any())
+        {
+            return 0;
+        }
+
+        return feedbacks!.Average(f => f.Rate);
+    }
+    
+    private async Task<double> GetAverageCuisineFeedback(string id)
+    {
+        var feedbacks = await feedbackRepository.GetCuisineFeedbacks(id);
         if (feedbacks == null || !feedbacks.Any())
         {
             return 0;

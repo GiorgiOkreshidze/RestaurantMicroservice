@@ -132,7 +132,14 @@ public class FeedbackRepository : IFeedbackRepository
         var filter = Builders<Feedback>.Filter.Eq(f => f.ReservationIdType, key);
         return await _collection.Find(filter).ToListAsync();
     }
-        
+
+    public async Task<IEnumerable<Feedback>> GetCuisineFeedbacks(string reservationId)
+    {
+        var key = $"{reservationId}#CUISINE_EXPERIENCE";
+        var filter = Builders<Feedback>.Filter.Eq(f => f.ReservationIdType, key);
+        return await _collection.Find(filter).ToListAsync();
+    }
+
     private static SortDefinition<Feedback> CreateSortDefinition(FeedbackQueryParameters queryParams)
     {
         var sortBuilder = Builders<Feedback>.Sort;

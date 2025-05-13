@@ -26,6 +26,7 @@ public class ReservationServiceTests
     private Mock<IReservationRepository> _reservationRepositoryMock = null!;
     private Mock<ILocationRepository> _locationRepositoryMock = null!;
     private Mock<IUserRepository> _userRepositoryMock = null!;
+    private Mock<IOrderRepository> _orderRepositoryMock = null!;
     private Mock<ITableRepository> _tableRepositoryMock = null!;
     private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
     private Mock<IFeedbackRepository> _feedbackRepository = null!;
@@ -47,6 +48,7 @@ public class ReservationServiceTests
     {
         _reservationRepositoryMock = new Mock<IReservationRepository>();
         _locationRepositoryMock = new Mock<ILocationRepository>();
+        _orderRepositoryMock = new Mock<IOrderRepository>();
         _userRepositoryMock = new Mock<IUserRepository>();
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
@@ -70,6 +72,7 @@ public class ReservationServiceTests
 
         _reservationService = new ReservationService(
             _reservationRepositoryMock.Object,
+            _orderRepositoryMock.Object,
             _locationRepositoryMock.Object,
             _userRepositoryMock.Object,
             _tableRepositoryMock.Object,
@@ -895,6 +898,7 @@ public class ReservationServiceTests
 
         var service = new ReservationService(
             _reservationRepositoryMock.Object,
+            _orderRepositoryMock.Object,
             _locationRepositoryMock.Object,
             _userRepositoryMock.Object,
             _tableRepositoryMock.Object,
