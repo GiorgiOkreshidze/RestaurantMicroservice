@@ -203,3 +203,13 @@ env:
         secretKeyRef:
           name: rabbitmq-default-user
           key: username
+    - name: FROM_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-emails-secret
+          key: from-email
+    - name: TO_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: run7team2-emails-secret
+          key: to-email

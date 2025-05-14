@@ -1,13 +1,17 @@
-using System.Net;
-using System.Net.Mail;
 using System.Text;
+using Amazon.SimpleEmail;
+using Amazon.SimpleEmail.Model;
+using Microsoft.Extensions.Options;
+using Restaurant.Application.DTOs.Aws;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
+using Message = Amazon.SimpleEmail.Model.Message;
 
 namespace Restaurant.Application.Services;
 
-public class EmailService(IUserRepository userRepository) : IEmailService
+
+public class EmailService(IUserRepository userRepository, IAmazonSimpleEmailService sesClient, IOptions<SesEmailSettings> settings) : IEmailService
 {
     public async Task SendPreOrderConfirmationEmailAsync(string userId, PreOrder preOrder)
     {
@@ -25,24 +29,35 @@ public class EmailService(IUserRepository userRepository) : IEmailService
         var subject = "Your Restaurant Pre-Order Confirmation";
         var body = BuildSimpleEmailBody(preOrder);
 
-        // Use Gmail's SMTP for testing
-        using var client = new SmtpClient();
-        client.Host = "sandbox.smtp.mailtrap.io";
-        client.Port = 2525;
-        client.EnableSsl = true;
-        client.DeliveryMethod = SmtpDeliveryMethod.Network;
-        client.Credentials = new NetworkCredential("53bc63a8682e2c", "0403e227535a0f");
+        var sendRequest = new SendEmailRequest
+        {
+            Source = settings.Value.FromEmail, // Verified email in SES
+            Destination = new Destination
+            {
+                ToAddresses = [settings.Value.ToEmail]
+            },
+            Message = new Message
+            {
+                Subject = new Content(subject),
+                Body = new Body
+                {
+                    Text = new Content
+                    {
+                        Charset = "UTF-8",
+                        Data = body
+                    }
+                }
+            }
+        };
 
-        using var message = new MailMessage();
-        message.From = new MailAddress("example@example.com", "Restaurant Booking");
-        message.Subject = subject;
-        message.Body = body;
-        message.IsBodyHtml = false;
-
-        // Add the temp-mail address received from your user
-        message.To.Add(user.Email);
-
-        await client.SendMailAsync(message);
+        try
+        {
+            await sesClient.SendEmailAsync(sendRequest);
+        }
+        catch (AmazonSimpleEmailServiceException ex)
+        {
+            throw new InvalidOperationException($"Failed to send email via SES: {ex.Message}", ex);
+        }
     }
 
     private static string BuildSimpleEmailBody(PreOrder preOrder)
