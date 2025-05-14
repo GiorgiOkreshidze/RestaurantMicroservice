@@ -17,4 +17,6 @@ public interface IPreOrderRepository
     public Task<List<PreOrderItem>> GetPreOrderItemsAsync(string preOrderId);
     
     public Task UpdatePreOrderDishesStatusAsync(string preOrderId, string dishId, string dishStatus);
+
+    Task<PreOrder?> GetPreOrderByReservationIdAsync(string reservationId);
 }

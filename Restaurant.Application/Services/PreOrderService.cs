@@ -43,13 +43,19 @@ public class PreOrderService(
     public async Task<CartDto> UpsertPreOrder(string userId, UpsertPreOrderRequest request)
     {
         ValidateInputParameters(userId, request);
-        await ValidateReservation(request.ReservationId);
-
+        var reservationId = request.ReservationId;
+        await ValidateReservation(reservationId);
+        
         if (request.DishItems.Count != 0)
         {
             await ValidateDishItems(request.DishItems);
         }
-
+        
+        if (string.IsNullOrEmpty(request.Id))
+        {
+            await ValidateNoExistingPreOrderForReservation(reservationId);
+        }
+        
         var existingPreOrder = await GetAndValidateExistingPreOrder(userId, request);
         var totalPrice = Utils.CalculateTotalPrice(
             request.DishItems,
@@ -75,16 +81,18 @@ public class PreOrderService(
         return await GetUserCart(userId);
     }
 
-    public async Task<PreOrderDishesDto> GetPreOrderDishes(string preOrderId)
+    public async Task<PreOrderDishConfirmDto> GetPreOrderDishes(string reservationId)
     {
-        if (string.IsNullOrEmpty(preOrderId))
+        if (string.IsNullOrEmpty(reservationId))
             throw new BadRequestException("PreOrder ID cannot be null or empty");
 
-        await ValidatePreOrderId(preOrderId);
-
-        var preOrderItems = await preOrderRepository.GetPreOrderItemsAsync(preOrderId);
-
-        var result = mapper.Map<PreOrderDishesDto>(preOrderItems);
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId) ?? throw new NotFoundException("Reservation", reservationId);
+        var preOrder = await preOrderRepository.GetPreOrderByReservationIdAsync(reservationId)
+                       ?? throw new NotFoundException("PreOrder for reservation", reservationId);
+        var result = mapper.Map<PreOrderDishConfirmDto>(preOrder);
+        result.CustomerName = reservation.UserInfo;
+        result.TableNumber = reservation.TableNumber;
+        
         return result;
     }
 
@@ -229,6 +237,7 @@ public class PreOrderService(
                 DishId = item.DishId,
                 DishName = item.DishName,
                 DishImageUrl = item.DishImageUrl,
+                DishStatus = "New",
                 Price = item.DishPrice,
                 Quantity = item.DishQuantity,
             };
@@ -268,5 +277,14 @@ public class PreOrderService(
 
         // Check if current time is past the cutoff
         return DateTime.Now >= cutoffTime;
+    }
+    
+    private async Task ValidateNoExistingPreOrderForReservation(string reservationId)
+    {
+        var existingPreOrderForReservation = await preOrderRepository.GetPreOrderByReservationIdAsync(reservationId);
+        if (existingPreOrderForReservation != null)
+        {
+            throw new ConflictException($"A preorder already exists for reservation ID {reservationId}. Please update the existing preorder instead of creating a new one.");
+        }
     }
 }

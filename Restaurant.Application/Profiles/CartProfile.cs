@@ -32,7 +32,12 @@ namespace Restaurant.Application.Profiles
                     opt.MapFrom(src => src == null || src.Count == 0));
             
             CreateMap<List<PreOrderItem>, PreOrderDishesDto>()
-                .ForMember(dest => dest.Dishes, opt => opt.MapFrom(src => src));
+                .ForMember(dest => dest.Dishes, opt => opt.MapFrom(src => src)); 
+            
+            CreateMap<PreOrder, PreOrderDishConfirmDto>()
+                .IncludeBase<PreOrder, PreOrderDto>()
+                .ForMember(dest => dest.CustomerName, opt => opt.Ignore())
+                .ForMember(dest => dest.TableNumber, opt => opt.Ignore());
         }
     }
 }
