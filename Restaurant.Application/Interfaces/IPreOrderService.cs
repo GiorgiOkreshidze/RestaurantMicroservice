@@ -8,5 +8,9 @@ namespace Restaurant.Application.Interfaces
         public Task<CartDto> GetUserCart(string userId);
 
         public Task<CartDto> UpsertPreOrder(string userId, UpsertPreOrderRequest request);
+        
+        public Task<PreOrderDishesDto> GetPreOrderDishes(string preOrderId);
+        
+        public Task UpdatePreOrderDishesStatus(UpdatePreOrderDishesStatusRequest request);
     }
 }

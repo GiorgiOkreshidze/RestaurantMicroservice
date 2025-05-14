@@ -14,6 +14,8 @@ public class PreOrderItem
     public int Quantity { get; set; }
 
     public decimal Price { get; set; }
+    
+    public string DishStatus { get; set; } = string.Empty; // Cancelled, Confirmed
 
     public required string DishImageUrl { get; set; }
 

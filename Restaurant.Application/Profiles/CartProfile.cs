@@ -13,6 +13,7 @@ namespace Restaurant.Application.Profiles
                 .ForMember(dest => dest.DishName, opt => opt.MapFrom(src => src.DishName))
                 .ForMember(dest => dest.DishPrice, opt => opt.MapFrom(src => src.Price))
                 .ForMember(dest => dest.DishQuantity, opt => opt.MapFrom(src => src.Quantity))
+                .ForMember(dest => dest.DishStatus, opt => opt.MapFrom(src => src.DishStatus))
                 .ForMember(dest => dest.DishImageUrl, opt => opt.MapFrom(src => src.DishImageUrl));
 
             CreateMap<PreOrder, PreOrderDto>()
@@ -29,6 +30,9 @@ namespace Restaurant.Application.Profiles
                 .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src))
                 .ForMember(dest => dest.IsEmpty, opt =>
                     opt.MapFrom(src => src == null || src.Count == 0));
+            
+            CreateMap<List<PreOrderItem>, PreOrderDishesDto>()
+                .ForMember(dest => dest.Dishes, opt => opt.MapFrom(src => src));
         }
     }
 }

@@ -4,6 +4,7 @@ using Restaurant.Application.DTOs.PerOrders;
 using Restaurant.Application.DTOs.PerOrders.Request;
 using Restaurant.Application.Interfaces;
 using System.Security.Claims;
+using Restaurant.Domain.Entities.Enums;
 
 namespace Restaurant.API.Controllers;
 
@@ -54,5 +55,59 @@ public class CartController(IPreOrderService preOrderService) : ControllerBase
         var result = await preOrderService.UpsertPreOrder(userId, request);
 
         return Ok(result);
+    }
+    
+    /// <summary>
+    /// Gets dishes from a specific pre-order for authorized waiters.
+    /// </summary>
+    /// <param name="preOrderId">The ID of the pre-order to retrieve dishes from</param>
+    /// <returns>List of dishes in the pre-order</returns>
+    /// <response code="200">Returns the dishes in the specified pre-order</response>
+    /// <response code="401">If user is not authenticated or not a waiter</response>
+    [HttpGet("preorder/{preOrderId}/dishes")]
+    [Authorize]
+    [ProducesResponseType(typeof(PreOrderDishesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPreOrderDishes(string preOrderId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+        
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+        
+        var preOrderDishes = await preOrderService.GetPreOrderDishes(preOrderId);
+        
+        return Ok(preOrderDishes);
+    }
+    
+    /// <summary>
+    /// Updates the status of dishes in a pre-order for authorized waiters.
+    /// </summary>
+    /// <param name="request">Request containing pre-order ID, dish ID and new status</param>
+    /// <returns>Success message</returns>
+    /// <response code="200">Returns success message after updating dish status</response>
+    /// <response code="401">If user is not authenticated or not a waiter</response>
+    [HttpPut("preorder/dishes/status")]
+    [Authorize]
+    [ProducesResponseType(typeof(PreOrderDishesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdatePreOrderDishesStatus([FromBody]UpdatePreOrderDishesStatusRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
+            return Unauthorized("User ID or role not found in token.");
+        
+        if (role != Role.Waiter.ToString())
+            return Unauthorized("You don't have permission to access this resource.");
+        
+        await preOrderService.UpdatePreOrderDishesStatus(request);
+        
+        return Ok("Dish status updated successfully.");
     }
 }
