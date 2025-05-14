@@ -75,6 +75,60 @@ public class PreOrderService(
         return await GetUserCart(userId);
     }
 
+    public async Task<PreOrderDishesDto> GetPreOrderDishes(string preOrderId)
+    {
+        if (string.IsNullOrEmpty(preOrderId))
+            throw new BadRequestException("PreOrder ID cannot be null or empty");
+
+        await ValidatePreOrderId(preOrderId);
+
+        var preOrderItems = await preOrderRepository.GetPreOrderItemsAsync(preOrderId);
+
+        var result = mapper.Map<PreOrderDishesDto>(preOrderItems);
+        return result;
+    }
+
+    public async Task UpdatePreOrderDishesStatus(UpdatePreOrderDishesStatusRequest request)
+    {
+        await ValidatePreOrderId(request.PreOrderId);
+        await ValidateDishId(request.DishId);
+        ValidateDishStatus(request.DishStatus);
+
+        if (string.IsNullOrEmpty(request.DishId))
+            throw new BadRequestException("Dish ID cannot be null or empty");
+
+        await preOrderRepository.UpdatePreOrderDishesStatusAsync(request.PreOrderId, request.DishId, request.DishStatus);
+    }
+    
+    private async Task ValidatePreOrderId(string preOrderId)
+    {
+        if (string.IsNullOrEmpty(preOrderId))
+            throw new BadRequestException("PreOrder ID cannot be null or empty");
+
+        var preOrder = await preOrderRepository.GetPreOrderOnlyByIdAsync(preOrderId);
+        if (preOrder is null)
+            throw new NotFoundException($"PreOrder with ID {preOrderId} does not exist");
+    }
+    
+    private async Task ValidateDishId(string dishId)
+    {
+        if (string.IsNullOrEmpty(dishId))
+            throw new BadRequestException("Dish ID cannot be null or empty");
+
+        var dish = await dishRepository.GetDishByIdAsync(dishId);
+        if (dish is null)
+            throw new NotFoundException($"dish with ID {dishId} does not exist");
+    }
+    
+    private static void ValidateDishStatus(string dishStatus)
+    {
+        var validStatuses = new[] { "Cancelled", "Confirmed" };
+        if (string.IsNullOrEmpty(dishStatus))
+            throw new BadRequestException("Dish status cannot be null or empty");
+        if (!validStatuses.Contains(dishStatus))
+            throw new BadRequestException($"Invalid dish status '{dishStatus}'. Status must be one of: {string.Join(", ", validStatuses)}");
+    }
+
     private static void ValidateInputParameters(string userId, UpsertPreOrderRequest request)
     {
         if (string.IsNullOrEmpty(userId))
@@ -101,7 +155,7 @@ public class PreOrderService(
             throw new NotFoundException($"Pre-order with ID {request.Id} does not exist");
 
         if (IsWithinCutoffTime(existingPreOrder.TimeSlot, existingPreOrder.ReservationDate))
-            throw new BadRequestException("Reservations can only be modified before 30 minutes of start time");
+            throw new BadRequestException("PreOrder can only be modified before 30 minutes of start time");
 
         return existingPreOrder;
     }

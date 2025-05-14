@@ -29,6 +29,13 @@ public class PreOrderRepository(IMongoDatabase database) : IPreOrderRepository
 
         return await _collection.Find(filter).FirstOrDefaultAsync();
     }
+    
+    public async Task<PreOrder?> GetPreOrderOnlyByIdAsync(string preOrderId)
+    {
+        var filter = Builders<PreOrder>.Filter.Eq(p => p.Id, preOrderId);
+
+        return await _collection.Find(filter).FirstOrDefaultAsync();
+    }
 
     public async Task<PreOrder> CreatePreOrderAsync(PreOrder preOrder)
     {
@@ -61,5 +68,24 @@ public class PreOrderRepository(IMongoDatabase database) : IPreOrderRepository
 
         var filter = Builders<PreOrder>.Filter.Eq(p => p.Id, preOrder.Id);
         await _collection.ReplaceOneAsync(filter, preOrder);
+    }
+    
+    public async Task<List<PreOrderItem>> GetPreOrderItemsAsync(string preOrderId)
+    {
+        var filter = Builders<PreOrder>.Filter.Eq(p => p.Id, preOrderId);
+        var preOrder = await _collection.Find(filter).FirstOrDefaultAsync();
+        
+        return preOrder?.Items ?? [];
+    }
+
+    public async Task UpdatePreOrderDishesStatusAsync(string preOrderId, string dishId, string dishStatus)
+    {
+        var filter = Builders<PreOrder>.Filter.And(
+            Builders<PreOrder>.Filter.Eq(p => p.Id, preOrderId),
+            Builders<PreOrder>.Filter.ElemMatch(p => p.Items, i => i.DishId == dishId)
+        );
+
+        var update = Builders<PreOrder>.Update.Set("Items.$.DishStatus", dishStatus);
+        await _collection.UpdateOneAsync(filter, update);
     }
 }
