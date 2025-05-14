@@ -8,6 +8,7 @@ using Restaurant.Infrastructure.Interfaces;
 using Restaurant.Infrastructure.Repositories;
 using Restaurant.Infrastructure.Services;
 using Amazon.S3;
+using Amazon.SimpleEmail;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using Restaurant.Infrastructure.MongoDB;
@@ -51,6 +52,9 @@ public static class DependencyInjection
             var settings = sp.GetRequiredService<IOptions<MongoDbSettings>>().Value;
             return client.GetDatabase(settings.DatabaseName);
         });
+        
+        services.AddSingleton<IAmazonSimpleEmailService>(_ => SesFactory.CreateSesClient(credentials));
+        
         services.AddScoped<MongoDbSeeder>();
         services.AddSingleton<AwsCredentialsFactory>();
 

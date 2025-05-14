@@ -46,6 +46,11 @@ builder.Services.Configure<RabbitMqSettings>(options => {
         options.Port = port;
 });
 
+builder.Services.Configure<SesEmailSettings>(options => {
+    options.FromEmail = Environment.GetEnvironmentVariable("FROM_EMAIL") ?? throw new ArgumentNullException(nameof(SesEmailSettings.FromEmail), "FROM_EMAIL environment variable is not set");
+    options.ToEmail = Environment.GetEnvironmentVariable("TO_EMAIL") ?? throw new ArgumentNullException(nameof(SesEmailSettings.ToEmail), "TO_EMAIL environment variable is not set");
+});
+
 builder.Services.AddValidatorsFromAssembly(
     typeof(AssemblyMarker).Assembly);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
