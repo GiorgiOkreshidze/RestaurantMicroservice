@@ -4,9 +4,18 @@ using Restaurant.Infrastructure.Interfaces;
 
 namespace Restaurant.Infrastructure.Repositories;
 
-public class PreOrderRepository(IMongoDatabase database) : IPreOrderRepository
+public class PreOrderRepository : IPreOrderRepository
 {
-    private readonly IMongoCollection<PreOrder> _collection = database.GetCollection<PreOrder>("PreOrders");
+    private readonly IMongoCollection<PreOrder> _collection;
+
+    public PreOrderRepository(IMongoDatabase database)
+    {
+        _collection = database.GetCollection<PreOrder>("PreOrders");
+        var indexKeysDefinition = Builders<PreOrder>.IndexKeys.Ascending(p => p.ReservationId);
+        var indexOptions = new CreateIndexOptions { Name = "ReservationId_Index" };
+        var indexModel = new CreateIndexModel<PreOrder>(indexKeysDefinition, indexOptions);
+        _collection.Indexes.CreateOne(indexModel);
+    }
 
     public async Task<List<PreOrder>> GetPreOrdersAsync(string userId, bool includeCancelled = false)
     {
@@ -87,5 +96,11 @@ public class PreOrderRepository(IMongoDatabase database) : IPreOrderRepository
 
         var update = Builders<PreOrder>.Update.Set("Items.$.DishStatus", dishStatus);
         await _collection.UpdateOneAsync(filter, update);
+    }
+
+    public async Task<PreOrder?> GetPreOrderByReservationIdAsync(string reservationId)
+    {
+        var filter = Builders<PreOrder>.Filter.Eq(p => p.ReservationId, reservationId);
+        return await _collection.Find(filter).FirstOrDefaultAsync();
     }
 }

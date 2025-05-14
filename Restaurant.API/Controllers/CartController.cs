@@ -60,15 +60,15 @@ public class CartController(IPreOrderService preOrderService) : ControllerBase
     /// <summary>
     /// Gets dishes from a specific pre-order for authorized waiters.
     /// </summary>
-    /// <param name="preOrderId">The ID of the pre-order to retrieve dishes from</param>
-    /// <returns>List of dishes in the pre-order</returns>
-    /// <response code="200">Returns the dishes in the specified pre-order</response>
+    /// <param name="reservationId">The ID of the reservation to retrieve preorder</param>
+    /// <returns>Pre-order with existing dishes</returns>
+    /// <response code="200">Returns the Preorder with Dishes</response>
     /// <response code="401">If user is not authenticated or not a waiter</response>
-    [HttpGet("preorder/{preOrderId}/dishes")]
+    [HttpGet("preorder/{reservationId}/dishes")]
     [Authorize]
-    [ProducesResponseType(typeof(PreOrderDishesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PreOrderDishConfirmDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetPreOrderDishes(string preOrderId)
+    public async Task<IActionResult> GetPreOrderDishes(string reservationId)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -79,7 +79,7 @@ public class CartController(IPreOrderService preOrderService) : ControllerBase
         if (role != Role.Waiter.ToString())
             return Unauthorized("You don't have permission to access this resource.");
         
-        var preOrderDishes = await preOrderService.GetPreOrderDishes(preOrderId);
+        var preOrderDishes = await preOrderService.GetPreOrderDishes(reservationId);
         
         return Ok(preOrderDishes);
     }
