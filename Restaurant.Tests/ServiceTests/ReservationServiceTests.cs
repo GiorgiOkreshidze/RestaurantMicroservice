@@ -1,12 +1,9 @@
 using System.Globalization;
-using Amazon.SQS;
-using Amazon.SQS.Model;
 using AutoMapper;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
-using Restaurant.Application.DTOs.Aws;
 using Restaurant.Application.DTOs.RabbitMq;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
@@ -30,6 +27,8 @@ public class ReservationServiceTests
     private Mock<ITableRepository> _tableRepositoryMock = null!;
     private Mock<IWaiterRepository> _waiterRepositoryMock = null!;
     private Mock<IFeedbackRepository> _feedbackRepository = null!;
+    private Mock<IPreOrderRepository> _preOrderRepository = null!;
+    private Mock<IOrderService> _orderService = null!;
     private IReservationService _reservationService = null!;
     private Mock<ITokenService> _tokenService = null!;
     private Mock<IValidator<FilterParameters>> _validatorFilterMock = null!;
@@ -53,6 +52,8 @@ public class ReservationServiceTests
         _tableRepositoryMock = new Mock<ITableRepository>();
         _waiterRepositoryMock = new Mock<IWaiterRepository>();
         _feedbackRepository = new Mock<IFeedbackRepository>();
+        _preOrderRepository = new Mock<IPreOrderRepository>();
+        _orderService = new Mock<IOrderService>();
         _tokenService = new Mock<ITokenService>();
         _validatorFilterMock = new Mock<IValidator<FilterParameters>>();
         _rabbitMqOptionsMock = new Mock<IOptions<RabbitMqSettings>>();
@@ -78,6 +79,8 @@ public class ReservationServiceTests
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
             _feedbackRepository.Object,
+            _preOrderRepository.Object,
+            _orderService.Object,
             _validatorFilterMock.Object,
             _tokenService.Object,
             _rabbitMqOptionsMock.Object,
@@ -904,6 +907,8 @@ public class ReservationServiceTests
             _tableRepositoryMock.Object,
             _waiterRepositoryMock.Object,
             _feedbackRepository.Object,
+            _preOrderRepository.Object,
+            _orderService.Object,
             _validatorFilterMock.Object,
             _tokenService.Object,
             _rabbitMqOptionsMock.Object,

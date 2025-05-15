@@ -18,4 +18,6 @@ public interface IReservationService
     Task<ReservationResponseDto> CancelReservationAsync(string reservationId, string userId, string role);
 
     Task<QrCodeResponse> CompleteReservationAsync(string reservationId);
+
+    Task StartReservationAsync(string reservationId, string userId);
 }

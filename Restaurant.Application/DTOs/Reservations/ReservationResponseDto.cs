@@ -13,6 +13,8 @@
         public required string LocationAddress { get; set; }
         
         public required string PreOrder { get; set; }
+        
+        public string? Order { get; set; }
 
         public required string Status { get; set; }
 

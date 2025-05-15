@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Restaurant.Application.DTOs.Reservations;
 using Restaurant.Application.DTOs.Tables;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities.Enums;
 
@@ -156,6 +157,33 @@ public class ReservationController(IReservationService reservationService, IOrde
         
         // For non-VISITOR clients
         return Ok(new { message = "Reservation completed successfully" });
+    }
+    
+    /// <summary>
+    /// Marks a reservation as in progress.
+    /// </summary>
+    /// <param name="id">The ID of the reservation to mark as in progress.</param>
+    /// <returns>A success message indicating the reservation was marked as in progress.</returns>
+    /// <response code="200">Reservation marked as in progress successfully.</response>
+    /// <response code="401">Unauthorized access or insufficient permissions.</response>
+    /// <response code="404">Reservation not found.</response>
+    [HttpPost("{id}/start")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult> StartReservation(string id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (role != Role.Waiter.ToString())
+        {
+            throw new UnauthorizedException("Only the assigned waiter can mark the reservation in Progress");
+        }
+
+
+        await reservationService.StartReservationAsync(id, userId);
+        return Ok(new { message = "Reservation marked as in progress successfully" });
     }
     
     /// <summary>
