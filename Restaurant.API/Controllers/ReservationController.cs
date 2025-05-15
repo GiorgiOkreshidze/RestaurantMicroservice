@@ -181,7 +181,6 @@ public class ReservationController(IReservationService reservationService, IOrde
             throw new UnauthorizedException("Only the assigned waiter can mark the reservation in Progress");
         }
 
-
         await reservationService.StartReservationAsync(id, userId);
         return Ok(new { message = "Reservation marked as in progress successfully" });
     }

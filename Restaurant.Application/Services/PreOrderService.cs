@@ -66,13 +66,11 @@ public class PreOrderService(
         }
 
         await SendConfirmationEmailIfSubmitted(userId, preOrder.Id!, request);
-        await UpdateReservationPreOrderCount(preOrder.Id!);
         
         var cart = await GetUserCart(userId);
         return cart;
     }
-         
-
+    
     public async Task<PreOrderDishConfirmDto> GetPreOrderDishes(string reservationId)
     {
         if (string.IsNullOrEmpty(reservationId))
@@ -138,7 +136,7 @@ public class PreOrderService(
         if (string.IsNullOrEmpty(request.ReservationId))
             throw new BadRequestException("Reservation ID cannot be null or empty");
     
-        var validStatuses = new[] {"Submitted", "Cancelled" };
+        var validStatuses = new[] {"New", "Submitted", "Cancelled" };
         if (string.IsNullOrEmpty(request.Status))
             throw new BadRequestException("Status cannot be null or empty");
         if (!validStatuses.Contains(request.Status))
@@ -248,6 +246,7 @@ public class PreOrderService(
             var preOrder = await preOrderRepository.GetPreOrderByIdAsync(userId, preOrderId);
             if (preOrder is not null)
             {
+                await UpdateReservationPreOrderCount(preOrder.Id!);
                 await emailService.SendPreOrderConfirmationEmailAsync(userId, preOrder);
             }
             else
