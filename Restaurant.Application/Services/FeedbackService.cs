@@ -16,13 +16,29 @@ public class FeedbackService(
     IReservationRepository reservationRepository, 
     IUserRepository userRepository,
     IFeedbackFactory feedbackFactory,
+    ILocationRepository locationRepository,
     IMapper mapper) : IFeedbackService
 {
     public async Task<FeedbacksWithMetaData> GetFeedbacksByLocationIdAsync(string id, FeedbackQueryParameters queryParams)
     {
+        // First verify the location exists
+        var locationExists = await locationRepository.LocationExistsAsync(id);
+        if (!locationExists)
+        {
+            throw new NotFoundException("Location", id);
+        }
+
+        // Handle feedback type parameter safely
         if (!string.IsNullOrEmpty(queryParams.Type))
         {
-            queryParams.EnumType = queryParams.Type.ToFeedbackType();
+            try
+            {
+                queryParams.EnumType = queryParams.Type.ToFeedbackType();
+            }
+            catch (ArgumentException ex)
+            {
+                throw new NotFoundException(ex.Message);
+            }
         }
 
         var (feedbacks, token) = await GetPaginatedFeedbacks(id, queryParams);

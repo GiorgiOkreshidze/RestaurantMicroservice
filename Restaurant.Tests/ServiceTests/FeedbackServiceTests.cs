@@ -19,6 +19,7 @@ namespace Restaurant.Tests.ServiceTests
         private Mock<IFeedbackRepository> _feedbackRepositoryMock = null!;
         private Mock<IUserRepository> _userRepositoryMock = null!;
         private Mock<IFeedbackFactory> _feedbackFactoryMock = null!;
+        private Mock<ILocationRepository> _locationRepositoryMock = null!;
         private Mock<IReservationRepository> _reservationRepositoryMock = null!;
         private IMapper _mapper = null!;
         private IFeedbackService _feedbackService = null!;
@@ -31,6 +32,7 @@ namespace Restaurant.Tests.ServiceTests
             _feedbackRepositoryMock = new Mock<IFeedbackRepository>();
             _userRepositoryMock = new Mock<IUserRepository>();
             _feedbackFactoryMock = new Mock<IFeedbackFactory>();
+            _locationRepositoryMock = new Mock<ILocationRepository>();
             _reservationRepositoryMock = new Mock<IReservationRepository>();
             
             var config = new MapperConfiguration(cfg =>
@@ -46,6 +48,7 @@ namespace Restaurant.Tests.ServiceTests
                 _reservationRepositoryMock.Object,
                 _userRepositoryMock.Object,
                 _feedbackFactoryMock.Object,
+                _locationRepositoryMock.Object,
                 _mapper);
 
             _feedbacks = new List<Feedback>

@@ -1,4 +1,5 @@
 using Restaurant.Application.DTOs.Feedbacks;
+using Restaurant.Application.Exceptions;
 using Restaurant.Application.Interfaces;
 using Restaurant.Domain.Entities.Enums;
 using Restaurant.Infrastructure.Interfaces;
@@ -14,13 +15,13 @@ public class AnonymousFeedbackService(
     {
         if (!tokenService.ValidateAnonymousFeedbackToken(token, out var reservationId))
         {
-            throw new InvalidOperationException("Invalid or expired feedback token.");
+            throw new BadRequestException("Invalid or expired feedback token.");
         }
 
         var reservation = await reservationRepository.GetReservationByIdAsync(reservationId);
         if (reservation == null || reservation.Status != ReservationStatus.Finished.ToString())
         {
-            throw new InvalidOperationException("Reservation not found or not completed.");
+            throw new BadRequestException("Reservation not found or not completed.");
         }
 
         return reservationId;
@@ -31,7 +32,7 @@ public class AnonymousFeedbackService(
         var reservation = await reservationRepository.GetReservationByIdAsync(request.ReservationId);
         if (reservation == null || reservation.Status != ReservationStatus.Finished.ToString())
         {
-            throw new InvalidOperationException("Reservation not found or not completed.");
+            throw new BadRequestException("Reservation not found or not completed.");
         }
 
         var feedbackRequest = new CreateFeedbackRequest
