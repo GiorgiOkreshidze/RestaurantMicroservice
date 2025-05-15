@@ -25,18 +25,45 @@ namespace Restaurant.Application.Services
             await reportServiceClient.SendReportEmailAsync(options.Value.BaseUrl);
         }
         
-        public async Task<IEnumerable<ReportResponse>> GetReportsAsync(ReportRequest request)
+        public async Task<ReportResponse> GetReportsAsync(ReportRequest request)
         {
+            
             await ValidateRequestAsync(request, reportRequestValidator);
+
             await ValidateLocationIdAsync(request.LocationId);
-            
-            logger.LogInformation("Retrieving reports with filters. StartDate: {StartDate}, EndDate: {EndDate}, LocationId: {LocationId}",
-                request.StartDate, request.EndDate, request.LocationId);
-                
-            var reports = await reportServiceClient.GetReportsAsync(options.Value.BaseUrl, request.StartDate, request.EndDate, request.LocationId);
-            
-            logger.LogInformation("Successfully retrieved {Count} reports", reports?.Count() ?? 0);
-            return reports ?? [];
+
+            logger.LogInformation("Retrieving reports with filters. StartDate: {StartDate}, EndDate: {EndDate}, LocationId: {LocationId}, ReportType: {ReportType}",
+                request.StartDate, request.EndDate, request.LocationId, request.ReportType);
+
+            var (waiterSummaries, locationSummaries) = await reportServiceClient.GetReportsAsync(
+                options.Value.BaseUrl, request.StartDate, request.EndDate, request.LocationId, request.ReportType);
+
+            var result = new ReportResponse();
+
+// Handle different report types
+            if (!string.IsNullOrEmpty(request.ReportType))
+            {
+                if (string.Equals(request.ReportType, "sales", StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogInformation("Returning {Count} sales reports", locationSummaries.Count);
+                    result.Sales = locationSummaries;
+                }
+                else // "performance"
+                {
+                    logger.LogInformation("Returning {Count} performance reports", waiterSummaries.Count);
+                    result.Performance = waiterSummaries;
+                }
+            }
+            else
+            {
+                // Return both data sets
+                logger.LogInformation("Returning combined report data with {SalesCount} sales and {PerformanceCount} performance entries", 
+                    locationSummaries.Count, waiterSummaries.Count);
+                result.Sales = locationSummaries;
+                result.Performance = waiterSummaries;
+            }
+
+            return result;
         }
         
         public async Task<byte[]> DownloadReportAsync(ReportDownloadRequest request)
@@ -44,6 +71,7 @@ namespace Restaurant.Application.Services
             await ValidateRequestAsync(request, reportDownloadRequestValidator);
             await ValidateLocationIdAsync(request.LocationId);
             ValidateReportFormat(request.Format);
+            
             
             logger.LogInformation("Downloading report. Format: {Format}, StartDate: {StartDate}, EndDate: {EndDate}, LocationId: {LocationId}",
                 request.Format, request.StartDate, request.EndDate, request.LocationId);
@@ -53,7 +81,8 @@ namespace Restaurant.Application.Services
                 request.StartDate, 
                 request.EndDate, 
                 request.LocationId, 
-                request.Format);
+                request.Format,
+                request.ReportType);
             
             logger.LogInformation("Report download completed. Size: {Size} bytes", fileBytes?.Length ?? 0);
             return fileBytes;

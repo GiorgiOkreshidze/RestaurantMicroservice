@@ -5,8 +5,9 @@ namespace Restaurant.Infrastructure.ExternalServices
     {
         Task<HttpResponseMessage> SendReportEmailAsync(string baseUrl);
         
-        Task<IEnumerable<ReportResponse>> GetReportsAsync(string baseUrl, string startDate, string endDate, string? locationId);
-        
-        Task<byte[]> DownloadReportAsync(string baseUrl, string startDate, string endDate, string? locationId, string format);
+        Task<(List<ReportResponse> WaiterSummaries, List<LocationSummaryResponse> LocationSummaries)> GetReportsAsync(
+            string baseUrl, string startDate, string endDate, string? locationId, string? reportType = null);
+        Task<byte[]> DownloadReportAsync(
+            string baseUrl, string startDate, string endDate, string? locationId, string format, string reportType);
     }
 }

@@ -20,9 +20,14 @@ namespace Restaurant.Infrastructure.ExternalServices
                 return response;
         }
         
-        public async Task<IEnumerable<ReportResponse>> GetReportsAsync(string baseUrl, string startDate, string endDate, string? locationId)
+        public async Task<(List<ReportResponse> WaiterSummaries, List<LocationSummaryResponse> LocationSummaries)> GetReportsAsync(
+            string baseUrl,
+            string startDate,
+            string endDate,
+            string? locationId,
+            string? reportType = null)
         {
-            var queryParams = BuildQueryParams(startDate, endDate, locationId);
+            var queryParams = BuildQueryParams(startDate, endDate, locationId, reportType: reportType);
                 
             var endpoint = $"{baseUrl}/reports";
             if (queryParams.Count > 0)
@@ -39,15 +44,67 @@ namespace Restaurant.Infrastructure.ExternalServices
             {
                 PropertyNameCaseInsensitive = true
             };
-            var reports = JsonSerializer.Deserialize<IEnumerable<ReportResponse>>(content, options);
-            //write log for reports
-            logger.LogInformation("Retrieved reports: {Reports}", JsonSerializer.Serialize(reports));
-            return reports ?? [];
+    
+            var locationSummaries = new List<LocationSummaryResponse>();
+            var waiterSummaries = new List<ReportResponse>();
+
+            // Check if response is an object with Sales and Performance properties
+            try
+            {
+                using var jsonDoc = JsonDocument.Parse(content);
+                var root = jsonDoc.RootElement;
+
+                // Case 1: Both Sales and Performance in an object
+                if (root.ValueKind == JsonValueKind.Object &&
+                    (root.TryGetProperty("sales", out var salesElement) ||
+                     root.TryGetProperty("performance", out var performanceElement)))
+                {
+                    if (root.TryGetProperty("sales", out salesElement))
+                    {
+                        locationSummaries = JsonSerializer.Deserialize<List<LocationSummaryResponse>>(
+                            salesElement.GetRawText(), options) ?? new List<LocationSummaryResponse>();
+                    }
+
+                    if (root.TryGetProperty("performance", out performanceElement))
+                    {
+                        waiterSummaries = JsonSerializer.Deserialize<List<ReportResponse>>(
+                            performanceElement.GetRawText(), options) ?? new List<ReportResponse>();
+                    }
+                }
+                // Case 2: Direct array of LocationSummaryResponse (sales only)
+                else if (string.Equals(reportType, "sales", StringComparison.OrdinalIgnoreCase))
+                {
+                    locationSummaries = JsonSerializer.Deserialize<List<LocationSummaryResponse>>(content, options) ?? 
+                        new List<LocationSummaryResponse>();
+                }
+                // Case 3: Direct array of ReportResponse (performance only)
+                else if (string.Equals(reportType, "performance", StringComparison.OrdinalIgnoreCase))
+                {
+                    waiterSummaries = JsonSerializer.Deserialize<List<ReportResponse>>(content, options) ?? 
+                        new List<ReportResponse>();
+                }
+            }
+            catch (JsonException ex)
+            {
+                logger.LogError(ex, "Failed to deserialize report response");
+                throw;
+            }
+
+            logger.LogInformation("Retrieved {LocationCount} location summaries and {WaiterCount} waiter summaries",
+                locationSummaries.Count, waiterSummaries.Count);
+
+            return (waiterSummaries, locationSummaries);
         }
 
-        public async Task<byte[]> DownloadReportAsync(string baseUrl, string startDate, string endDate, string? locationId, string format)
+        public async Task<byte[]> DownloadReportAsync(
+            string baseUrl,
+            string startDate,
+            string endDate,
+            string? locationId,
+            string format,
+            string reportType)
         {
-            var queryParams = BuildQueryParams(startDate, endDate, locationId, format);
+            var queryParams = BuildQueryParams(startDate, endDate, locationId, format, reportType);
           
             var endpoint = $"{baseUrl}/reports/download";
             if (queryParams.Count > 0)
@@ -71,7 +128,8 @@ namespace Restaurant.Infrastructure.ExternalServices
             string startDate, 
             string endDate, 
             string? locationId = null,
-            string? format = null)
+            string? format = null,
+            string? reportType = null)
         {
             var queryParams = HttpUtility.ParseQueryString(string.Empty);
     
@@ -83,6 +141,9 @@ namespace Restaurant.Infrastructure.ExternalServices
         
             if (!string.IsNullOrEmpty(format))
                 queryParams["format"] = format.ToLower();
+            
+            if (!string.IsNullOrEmpty(reportType))
+                queryParams["reportType"] = reportType.ToLower();
         
             return queryParams;
         }
