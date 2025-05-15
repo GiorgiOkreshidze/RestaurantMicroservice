@@ -19,6 +19,8 @@ public class Reservation
     public required string LocationAddress { get; set; }
 
     public required string PreOrder { get; set; }
+    
+    public string? Order { get; set; } = string.Empty;
 
     public required string Status { get; set; }
 

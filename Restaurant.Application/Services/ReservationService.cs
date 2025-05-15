@@ -29,6 +29,8 @@ public class ReservationService(
     ITableRepository tableRepository,
     IWaiterRepository waiterRepository,
     IFeedbackRepository feedbackRepository,
+    IPreOrderRepository preorderRepository,
+    IOrderService orderService,
     IValidator<FilterParameters> filterValidator,
     ITokenService tokenService,
     IOptions<RabbitMqSettings> rabbitMqSettings,
@@ -84,7 +86,7 @@ public class ReservationService(
         ValidateTimeSlot(reservationRequest);
         var location = await locationRepository.GetLocationByIdAsync(reservationRequest.LocationId) ?? throw new NotFoundException("Location", reservationRequest.LocationId);
         var table = await GetAndValidateTable(reservationRequest.TableId, reservationRequest.GuestsNumber, reservationRequest.LocationId);
-
+        
         var reservationDto = new Reservation
         {
             Id = reservationRequest.Id ?? Guid.NewGuid().ToString(),
@@ -93,6 +95,7 @@ public class ReservationService(
             LocationAddress = location.Address,
             LocationId = location.Id,
             PreOrder = "0",
+            Order = "0",
             TableCapacity = table.Capacity,
             Status = ReservationStatus.Reserved.ToString(),
             TableId = reservationRequest.TableId,
@@ -225,6 +228,50 @@ public class ReservationService(
         };
     }
 
+    public async Task StartReservationAsync(string reservationId, string userId)
+    {
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId) ??  throw new NotFoundException("Reservation", reservationId);
+    
+        if (reservation.WaiterId != userId)
+        {
+            throw new UnauthorizedException("Only the assigned waiter can mark the reservation in Progress");
+        }
+        
+        if (reservation.Status != ReservationStatus.Reserved.ToString())
+        {
+            throw new ConflictException("The reservation should have status 'Reserved' to start.");
+        }
+
+        reservation.Status = ReservationStatus.InProgress.ToString();
+        await ProcessPreOrdersAsync(reservationId, userId);
+        var order = await orderRepository.GetOrderByReservationIdAsync(reservationId);
+        if (order != null)
+        {
+                reservation.Order =   order.Dishes
+                    .Sum(i => i.Quantity)
+                    .ToString() ?? "0";
+        }
+        await reservationRepository.UpsertReservationAsync(reservation);
+    }
+    private async Task ProcessPreOrdersAsync(string reservationId, string userId)
+    {
+        var preOrder = await preorderRepository.GetPreOrderByReservationIdAsync(reservationId);
+    
+        if (preOrder == null || preOrder.Items.Count == 0 || preOrder.Status != "Submitted")
+        {
+            return;
+        }
+
+        var activeDishes = preOrder.Items.Where(i => i.DishStatus == "Confirmed").ToList();
+        foreach (var item in activeDishes)
+        {
+            for (int i = 0; i < item.Quantity; i++)
+            {
+                await orderService.AddDishToOrderAsync(reservationId, item.DishId, userId);
+            }
+        }
+        
+    }
     private static string GenerateQrCodeAsync(string feedbackUrl)
     {
         using var qrGenerator = new QRCodeGenerator();
@@ -398,6 +445,7 @@ public class ReservationService(
         if (reservationExists)
         {
             await ValidateModificationPermissionsForWaiter(reservation, waiterId);
+            await UpdateReservationPreOrderCount(reservation.Id, reservation);
         }
 
         if (request.ClientType == ClientType.CUSTOMER && request.CustomerId != null)
@@ -435,7 +483,8 @@ public class ReservationService(
         }
         else
         {
-            await ValidateModificationPermissionsForClient(reservation, user);
+            await ValidateModificationPermissionsForClient(reservation, user); 
+            await UpdateReservationPreOrderCount(reservation.Id, reservation);
         }
         
         await reservationRepository.UpsertReservationAsync(reservation);
@@ -467,6 +516,22 @@ public class ReservationService(
         ValidateReservationTimeLock(mapper.Map<ReservationDto>(existingReservation));
     }
 
+    private async Task UpdateReservationPreOrderCount(string reservationId, Reservation reservation)
+    {
+        var preOrder = await preorderRepository.GetPreOrderByReservationIdAsync(reservationId);
+        if (preOrder != null && preOrder.Items.Any())
+        {
+            reservation.PreOrder = preOrder.Items
+                .Where(i => i.DishStatus != "Cancelled")
+                .Sum(i => i.Quantity)
+                .ToString();
+        }
+        else
+        {
+            reservation.PreOrder = "0";
+        }
+    }
+    
     private void ValidateReservationTimeLock(ReservationDto reservation)
     {
         var reservationDateTime = DateTime.ParseExact(
