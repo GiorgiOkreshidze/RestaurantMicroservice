@@ -8,6 +8,8 @@ namespace Restaurant.Application.DTOs.Reports
         
         public required string EndDate { get; set; }
         
+        public string? ReportType { get; set; }
+        
         public string? LocationId { get; set; }
     }
 }
