@@ -101,13 +101,13 @@ public class CartController(IPreOrderService preOrderService) : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(role))
-            return Unauthorized("User ID or role not found in token.");
+            return Unauthorized(new {Message = "User ID or role not found in token."});
         
         if (role != Role.Waiter.ToString())
-            return Unauthorized("You don't have permission to access this resource.");
+            return Unauthorized(new {Message = "You don't have permission to access this resource."});
         
         await preOrderService.UpdatePreOrderDishesStatus(request);
         
-        return Ok("Dish status updated successfully.");
+        return Ok(new {Message = "Dish status updated successfully."});
     }
 }

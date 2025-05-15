@@ -9,6 +9,7 @@ using Restaurant.Domain.Entities;
 using Restaurant.Infrastructure.Interfaces;
 using System.Globalization;
 using Restaurant.Application.DTOs.PerOrders.Request;
+using Restaurant.Application.Exceptions;
 
 namespace Restaurant.Tests.ServiceTests
 {
@@ -333,7 +334,7 @@ namespace Restaurant.Tests.ServiceTests
         public void GetUserCart_WithNullUserId_ThrowsArgumentException()
         {
             // Act & Assert
-            Assert.ThrowsAsync<ArgumentException>(async () =>
+            Assert.ThrowsAsync<BadRequestException>(async () =>
                 await _preOrderService.GetUserCart(null!));
 
             // Verify repository was not called
@@ -345,7 +346,7 @@ namespace Restaurant.Tests.ServiceTests
         public void GetUserCart_WithEmptyUserId_ThrowsArgumentException()
         {
             // Act & Assert
-            Assert.ThrowsAsync<ArgumentException>(async () =>
+            Assert.ThrowsAsync<BadRequestException>(async () =>
                 await _preOrderService.GetUserCart(string.Empty));
 
             // Verify repository was not called
@@ -456,633 +457,457 @@ namespace Restaurant.Tests.ServiceTests
         }
         
         #region UpsertPreOrder Tests
-
-        [Test]
-        public void UpsertPreOrder_WithNullUserId_ThrowsArgumentException()
-        {
+        
+         [Test] 
+         public async Task UpsertPreOrder_WhenCreatingNewPreOrder_ShouldCreatePreOrderAndReturnUpdatedCart() 
+         {
             // Arrange
-            var request = new UpsertPreOrderRequest()
+            var request = new UpsertPreOrderRequest
             {
-                ReservationId = "res-1",
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 },
+                    new() { DishId = "dish2", DishQuantity = 1 }
                 }
             };
 
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _preOrderService.UpsertPreOrder(null!, request));
-
-            Assert.That(exception!.Message, Does.Contain("User ID cannot be null or empty"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithEmptyUserId_ThrowsArgumentException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
+            var reservation = new Reservation
             {
-                ReservationId = "res-1",
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
-                }
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "0",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
             };
 
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _preOrderService.UpsertPreOrder(string.Empty, request));
-
-            Assert.That(exception!.Message, Does.Contain("User ID cannot be null or empty"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithNonExistentPreOrderId_ThrowsInvalidOperationException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
+            var dishes = new List<Dish>
             {
-                Id = "non-existent-id",
-                ReservationId = "res-1",
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
-                }
+                new() { Id = "dish1", Name = "Pizza", Price = 10.99M, Weight = "500g", ImageUrl = "pizza.jpg" },
+                new() { Id = "dish2", Name = "Pasta", Price = 8.50M, Weight = "400g", ImageUrl = "pasta.jpg" }
             };
 
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrderByIdAsync(_userId, "non-existent-id"))
-                .ReturnsAsync((PreOrder?)null);
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new Dish
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 10.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Pre-order with ID non-existent-id does not exist"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithNullReservationId_ThrowsArgumentException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
+            var createdPreOrder = new PreOrder
             {
-                ReservationId = null!,
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
-                }
-            };
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Reservation ID cannot be null or empty"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithEmptyDishItems_ThrowsArgumentException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                DishItems = new List<DishItemDto>()
-            };
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Order must contain at least one dish item"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithNullDishItems_ThrowsArgumentException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                DishItems = null!
-            };
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Order must contain at least one dish item"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithExistingPreOrderWithinCutoffTime_ThrowsInvalidOperationException()
-        {
-            // Arrange
-            var futureTime = DateTime.Now.AddMinutes(20).ToString("HH:mm"); // Within 30 min cutoff
-            var today = DateTime.Now.ToString("yyyy-MM-dd");
-
-            var existingPreOrder = new PreOrder
-            {
+                Id = "newpreorder123",
                 UserId = _userId,
-                Id = "existing-id",
-                TimeSlot = futureTime,
-                ReservationDate = today,
-                ReservationId = "res-1",
-                Status = "Draft",
-                Address = "123 Main St",
-            };
-
-            var request = new UpsertPreOrderRequest
-            {
-                Id = "existing-id",
-                ReservationId = "res-1",
-                TimeSlot = futureTime,
-                ReservationDate = today,
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                TimeSlot = reservation.TimeSlot,
+                Address = reservation.LocationAddress,
+                ReservationDate = reservation.Date,
+                CreateDate = DateTime.UtcNow,
+                TotalPrice = 30.48M,
+                Items = new List<PreOrderItem>
+                {
+                    new() { Id = "item1", DishId = "dish1", DishName = "Pizza", Quantity = 2, Price = 10.99M, DishStatus = "New", DishImageUrl = "pizza.jpg" },
+                    new() { Id = "item2", DishId = "dish2", DishName = "Pasta", Quantity = 1, Price = 8.50M, DishStatus = "New", DishImageUrl = "pasta.jpg" }
                 }
             };
 
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrderByIdAsync(_userId, "existing-id"))
-                .ReturnsAsync(existingPreOrder);
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByReservationIdAsync(request.ReservationId))
+                .ReturnsAsync((PreOrder)null);
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+            _dishRepositoryMock.Setup(x => x.GetDishesByIdsAsync(It.IsAny<List<string>>()))
+                .ReturnsAsync(dishes);
             
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new Dish
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 10.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-            
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Cannot modify pre-order within 30 minutes of reservation time"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithNonExistentReservation_ThrowsInvalidOperationException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "non-existent-res",
-                DishItems = new List<DishItemDto> { new()
-                    {
-                        DishId = "dish-1",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    }
-                }
-            };
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("non-existent-res"))
-                .ReturnsAsync(false);
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("Reservation with ID non-existent-res does not exist"));
-        }
-
-        [Test]
-        public void UpsertPreOrder_WithNonExistentDishId_ThrowsInvalidOperationException()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                DishItems = new List<DishItemDto>
-                {
-                    new()
-                    {
-                        DishId = "valid-dish",
-                        DishQuantity = 1,
-                        DishPrice = 10.99m,
-                        DishImageUrl = "image1.jpg",
-                        DishName = "Pasta"
-                    },
-                    new()
-                    {
-                        DishId = "invalid-dish",
-                        DishQuantity = 2,
-                        DishPrice = 12.99m,
-                        DishImageUrl = "image2.jpg",
-                        DishName = "Salad"
-                    }
-                }
-            };
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                    {
-                        Id = "valid-dish",
-                        Name = "Valid Dish",
-                        Price = 10.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            // Act & Assert
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await _preOrderService.UpsertPreOrder(_userId, request));
-
-            Assert.That(exception!.Message, Does.Contain("The following dish IDs do not exist: invalid-dish"));
-        }
-
-        [Test]
-        public async Task UpsertPreOrder_CreateNewPreOrder_CreatesAndReturnsCart()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                Status = "Draft",
-                TimeSlot = "14:00 - 15:00",
-                Address = "123 Main St",
-                ReservationDate = "2023-10-15",
-                DishItems = new List<DishItemDto>
-                {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
-                }
-            };
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 12.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            // Capture the created preOrder
-            _preOrderRepositoryMock.Setup(repo => repo.CreatePreOrderAsync(It.IsAny<PreOrder>()))
-                .Callback<PreOrder>(po => _ = po)
-                .ReturnsAsync((PreOrder)null!);
-
-            // Setup for GetUserCart
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
-                .ReturnsAsync(new List<PreOrder> { new()
-                    {
-                        Id = "new-order",
-                        UserId = _userId,
-                        ReservationId = "res-1",
-                        Status = "Draft",
-                        TimeSlot = "14:00 - 15:00",
-                        ReservationDate = "2023-10-15",
-                        Address = "123 Main St",
-                    }
-                });
-
-            // Act
-            var result = await _preOrderService.UpsertPreOrder(_userId, request);
-
-            // Assert
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.IsEmpty, Is.False);
-
-            // Verify repository methods were called with correct parameters
-            _preOrderRepositoryMock.Verify(repo => repo.CreatePreOrderAsync(It.Is<PreOrder>(p => 
-                p.UserId == _userId && 
-                p.ReservationId == "res-1" && 
-                p.Status == "Draft" && 
-                p.TimeSlot == "14:00 - 15:00" &&
-                p.Items.Count == 1
-            )), Times.Once);
-            
-            _preOrderRepositoryMock.Verify(repo => repo.GetPreOrdersAsync(_userId, false), Times.Once);
-        }
-
-        [Test]
-        public async Task UpsertPreOrder_UpdateExistingPreOrder_UpdatesAndReturnsCart()
-        {
-            // Arrange
-            var existingId = "existing-id";
-            var existingPreOrder = new PreOrder
-            {
-                UserId = _userId,
-                Id = existingId,
-                ReservationId = "res-old",
-                Status = "Draft",
-                TimeSlot = "16:00 - 17:00",
-                ReservationDate = "9999-12-15", // Far in future to avoid cutoff time issue
-                CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
-                Items = new List<PreOrderItem>(),
-                Address = "123 Old St"
-            };
-
-            var request = new UpsertPreOrderRequest
-            {
-                Id = existingId,
-                ReservationId = "res-1",
-                Status = "Draft",
-                TimeSlot = "14:00 - 15:00",
-                Address = "123 Main St",
-                ReservationDate = "9999-12-15",
-                DishItems = new List<DishItemDto>
-                {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
-                }
-            };
-
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrderByIdAsync(_userId, existingId))
-                .ReturnsAsync(existingPreOrder);
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 12.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            // Capture the updated preOrder
-            _preOrderRepositoryMock.Setup(repo => repo.UpdatePreOrderAsync(It.IsAny<PreOrder>()))
-                .Callback<PreOrder>(po => _ = po)
-                .Returns(Task.CompletedTask);
-
-            // Setup for GetUserCart to return the updated order
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
-                .ReturnsAsync(new List<PreOrder> { existingPreOrder });
-
-            // Act
-            var result = await _preOrderService.UpsertPreOrder(_userId, request);
-
-            // Assert
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.IsEmpty, Is.False);
-
-            // Verify repository methods were called
-            _preOrderRepositoryMock.Verify(repo => repo.UpdatePreOrderAsync(It.Is<PreOrder>(p => 
-                p.UserId == _userId && 
-                p.Id == existingId && 
-                p.ReservationId == "res-1" &&
-                p.TimeSlot == "14:00 - 15:00" &&
-                p.Items.Count == 1
-            )), Times.Once);
-            
-            _preOrderRepositoryMock.Verify(repo => repo.GetPreOrdersAsync(_userId, false), Times.Once);
-        }
-
-        [Test]
-        public async Task UpsertPreOrder_WithStatusSubmitted_SendsConfirmationEmail()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                Id = "existing-id",
-                ReservationId = "res-1",
-                Status = "Submitted", // This should trigger email sending
-                TimeSlot = "14:00 - 15:00",
-                Address = "123 Main St",
-                ReservationDate = "9999-12-15",
-                DishItems = new List<DishItemDto>
-                {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
-                }
-            };
-
-            var existingPreOrder = new PreOrder
-            {
-                UserId = _userId,
-                Id = "existing-id",
-                ReservationId = "res-1",
-                Status = "Draft",
-                TimeSlot = "14:00 - 15:00",
-                ReservationDate = "9999-12-15",
-                CreateDate = DateTime.Parse("2023-05-15T12:00:00Z", CultureInfo.InvariantCulture),
-                Items = new List<PreOrderItem>(),
-                Address = "123 Main St"
-            };
-
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrderByIdAsync(_userId, "existing-id"))
-                .ReturnsAsync(existingPreOrder);
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 12.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            _preOrderRepositoryMock.Setup(repo => repo.UpdatePreOrderAsync(It.IsAny<PreOrder>()))
-                .Returns(Task.CompletedTask);
-
-            // Setup for email sending verification
-            _emailServiceMock.Setup(service => service.SendPreOrderConfirmationEmailAsync(_userId, It.IsAny<PreOrder>()))
-                .Returns(Task.CompletedTask);
-
-            // Setup for GetUserCart
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
-                .ReturnsAsync(new List<PreOrder> { existingPreOrder });
-
-            // Act
-            var result = await _preOrderService.UpsertPreOrder(_userId, request);
-
-            // Assert
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.IsEmpty, Is.False);
-
-            // Verify email was sent
-            _emailServiceMock.Verify(service => service.SendPreOrderConfirmationEmailAsync(_userId, It.IsAny<PreOrder>()), Times.Once);
-        }
-
-        [Test]
-        public async Task UpsertPreOrder_WithStatusDraft_DoesNotSendEmail()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                Status = "Draft", // This should NOT trigger email sending
-                TimeSlot = "14:00 - 15:00",
-                Address = "123 Main St",
-                ReservationDate = "2023-12-15",
-                DishItems = new List<DishItemDto>
-                {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" }
-                }
-            };
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                    {
-                        Id = "dish-1",
-                        Name = "Pasta",
-                        Price = 12.99m,
-                        Weight = "1kg",
-                        ImageUrl = "image1.jpg",
-                    }
-                });
-
-            _preOrderRepositoryMock.Setup(repo => repo.CreatePreOrderAsync(It.IsAny<PreOrder>()))
-                .ReturnsAsync((PreOrder)null!);
-
-            // Setup for GetUserCart
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
-                .ReturnsAsync(new List<PreOrder> { new()
-                    {
-                        Id = "new-order",
-                        UserId = _userId,
-                        ReservationId = "res-1",
-                        Status = "Draft",
-                        TimeSlot = "14:00 - 15:00",
-                        ReservationDate = "2023-12-15",
-                        Address = "123 Main St",
-                    }
-                });
-
-            // Act
-            var result = await _preOrderService.UpsertPreOrder(_userId, request);
-
-            // Assert
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.IsEmpty, Is.False);
-
-            // Verify email was NOT sent
-            _emailServiceMock.Verify(service => service.SendPreOrderConfirmationEmailAsync(It.IsAny<string>(), It.IsAny<PreOrder>()), Times.Never);
-        }
-
-        [Test]
-        public async Task UpsertPreOrder_CalculatesTotalPriceCorrectly()
-        {
-            // Arrange
-            var request = new UpsertPreOrderRequest
-            {
-                ReservationId = "res-1",
-                Status = "Draft",
-                TimeSlot = "14:00 - 15:00",
-                Address = "123 Main St",
-                ReservationDate = "2023-12-15",
-                DishItems = new List<DishItemDto>
-                {
-                    new() { DishId = "dish-1", DishName = "Pasta", DishQuantity = 2, DishPrice = 12.99m, DishImageUrl = "image1.jpg" },
-                    new() { DishId = "dish-2", DishName = "Salad", DishQuantity = 1, DishPrice = 8.50m, DishImageUrl = "image2.jpg" }
-                }
-            };
-
-            _reservationRepositoryMock.Setup(repo => repo.ReservationExistsAsync("res-1"))
-                .ReturnsAsync(true);
-
-            _dishRepositoryMock.Setup(repo => repo.GetDishesByIdsAsync(It.IsAny<List<string>>()))
-                .ReturnsAsync(new List<Dish> { new()
-                {
-                    Id = "dish-1",
-                    Name = "Pasta",
-                    Price = 12.99m,
-                    Weight = "1kg",
-                    ImageUrl = "image1.jpg",
-                }, new()
-                    {
-                        Id = "dish-2",
-                        Name = "Salad",
-                        Price = 8.50m,
-                        Weight = "500g",
-                        ImageUrl = "image2.jpg",
-                    }
-                });
-
-            // Capture the created preOrder to verify total price
-            PreOrder? capturedPreOrder = null;
-            _preOrderRepositoryMock.Setup(repo => repo.CreatePreOrderAsync(It.IsAny<PreOrder>()))
+            // Use ReturnsAsync with a function to capture and use the PreOrder that is created
+            PreOrder capturedPreOrder = null;
+            _preOrderRepositoryMock.Setup(x => x.CreatePreOrderAsync(It.IsAny<PreOrder>()))
                 .Callback<PreOrder>(po => capturedPreOrder = po)
-                .ReturnsAsync((PreOrder)null!);
+                .Returns(Task.FromResult<PreOrder>(null))  // Changed to use Returns with Task.FromResult
+                .Callback<PreOrder>(po => capturedPreOrder = po);
+                
+            // Setup GetPreOrderOnlyByIdAsync to return the captured PreOrder for any ID
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderOnlyByIdAsync(It.IsAny<string>()))
+                .ReturnsAsync((string id) => capturedPreOrder);
+                
+            // Setup GetPreOrderByIdAsync to return the captured PreOrder
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByIdAsync(_userId, It.IsAny<string>()))
+                .ReturnsAsync((string userId, string id) => capturedPreOrder);
+                
+            // Setup GetPreOrdersAsync to return a list containing the captured PreOrder
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrdersAsync(_userId, false))
+                .ReturnsAsync(() => new List<PreOrder> { capturedPreOrder });
 
-            // Setup for GetUserCart
-            _preOrderRepositoryMock.Setup(repo => repo.GetPreOrdersAsync(_userId, false))
-                .ReturnsAsync(new List<PreOrder> { new()
-                    {
-                        Id = "new-order",
-                        UserId = _userId,
-                        ReservationId = "res-1",
-                        Status = "Draft",
-                        TimeSlot = "14:00 - 15:00",
-                        ReservationDate = "2023-12-15",
-                        Address = "123 Main St",
-                    }
-                });
+            _reservationRepositoryMock.Setup(x => x.UpsertReservationAsync(It.IsAny<Reservation>()))
+                .ReturnsAsync((Reservation r) => r);
 
             // Act
-            await _preOrderService.UpsertPreOrder(_userId, request);
+            var result = await _preOrderService.UpsertPreOrder(_userId, request);
 
-            // Assert - Verify total price calculation: (12.99 * 2) + (8.50 * 1) = 34.48
-            Assert.That(capturedPreOrder, Is.Not.Null);
-            Assert.That(capturedPreOrder!.TotalPrice, Is.EqualTo(34.48m));
+            // Assert
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.IsEmpty, Is.False);
+            _preOrderRepositoryMock.Verify(x => x.CreatePreOrderAsync(It.IsAny<PreOrder>()), Times.Once);
+            _preOrderRepositoryMock.Verify(x => x.UpdatePreOrderAsync(It.IsAny<PreOrder>()), Times.Never);
+            _emailServiceMock.Verify(x => x.SendPreOrderConfirmationEmailAsync(_userId, It.IsAny<PreOrder>()), Times.Once);
+        }
+
+        [Test]
+        public async Task UpsertPreOrder_WhenUpdatingExistingPreOrder_ShouldUpdatePreOrderAndReturnUpdatedCart()
+        {
+            // Arrange
+            var preOrderId = "preorder123";
+            var request = new UpsertPreOrderRequest
+            {
+                Id = preOrderId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 3 }
+                }
+            };
+
+            var existingPreOrder = new PreOrder
+            {
+                Id = preOrderId,
+                UserId = _userId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                TimeSlot = "18:00 - 20:00",
+                ReservationDate = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                CreateDate = DateTime.UtcNow.AddHours(-1),
+                Address = "123 Main St",
+                TotalPrice = 20.99M,
+                Items = new List<PreOrderItem>
+                {
+                    new() { Id = "item1", DishId = "dish1", DishName = "Pizza", Quantity = 2, Price = 10.99M, DishStatus = "New", DishImageUrl = "pizza.jpg" }
+                }
+            };
+
+            var reservation = new Reservation
+            {
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "2",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
+            };
+
+            var dishes = new List<Dish>
+            {
+                new() { Id = "dish1", Name = "Pizza", Price = 10.99M, Weight = "500g", ImageUrl = "pizza.jpg" }
+            };
+
+            // Create an updated version of the PreOrder that will be returned by the repository after update
+            var updatedPreOrder = new PreOrder
+            {
+                Id = preOrderId,
+                UserId = _userId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                TimeSlot = "18:00 - 20:00",
+                ReservationDate = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                CreateDate = existingPreOrder.CreateDate,
+                Address = "123 Main St",
+                TotalPrice = 32.97M, // 3 * 10.99
+                Items = new List<PreOrderItem>
+                {
+                    new() { Id = "item1", DishId = "dish1", DishName = "Pizza", Quantity = 3, Price = 10.99M, DishStatus = "New", DishImageUrl = "pizza.jpg" }
+                }
+            };
+
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByIdAsync(_userId, preOrderId))
+                .ReturnsAsync(existingPreOrder);
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+            _dishRepositoryMock.Setup(x => x.GetDishesByIdsAsync(It.IsAny<List<string>>()))
+                .ReturnsAsync(dishes);
+            
+            // Setup to return the updated PreOrder after updating
+            PreOrder capturedPreOrder = null;
+            _preOrderRepositoryMock.Setup(x => x.UpdatePreOrderAsync(It.IsAny<PreOrder>()))
+                .Callback<PreOrder>(po => capturedPreOrder = po)
+                .Returns(Task.FromResult<PreOrder>(null))  // Changed to use Returns with Task.FromResult
+                .Callback<PreOrder>(po => capturedPreOrder = po);
+            
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderOnlyByIdAsync(preOrderId))
+                .ReturnsAsync(updatedPreOrder);
+            
+            // Return a non-empty list containing the updated PreOrder
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrdersAsync(_userId, false))
+                .ReturnsAsync(new List<PreOrder> { updatedPreOrder });
+            
+            _reservationRepositoryMock.Setup(x => x.UpsertReservationAsync(It.IsAny<Reservation>()))
+                .ReturnsAsync((Reservation r) => r);
+
+            // Act
+            var result = await _preOrderService.UpsertPreOrder(_userId, request);
+
+            // Assert
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.IsEmpty, Is.False);
+            _preOrderRepositoryMock.Verify(x => x.UpdatePreOrderAsync(It.IsAny<PreOrder>()), Times.Once);
+            _preOrderRepositoryMock.Verify(x => x.CreatePreOrderAsync(It.IsAny<PreOrder>()), Times.Never);
+            _emailServiceMock.Verify(x => x.SendPreOrderConfirmationEmailAsync(_userId, It.IsAny<PreOrder>()), Times.Once);
+            
+            // Additional assertions to verify the content of the returned cart
+            Assert.That(result.Content, Has.Count.EqualTo(1));
+            Assert.That(result.Content[0].Id, Is.EqualTo(preOrderId));
+            Assert.That(result.Content[0].TotalPrice, Is.EqualTo(32.97M));
+        }
+
+        [Test]
+        public void UpsertPreOrder_WithInvalidReservationId_ShouldThrowNotFoundException()
+        {
+            // Arrange
+            var request = new UpsertPreOrderRequest
+            {
+                Id = null,
+                ReservationId = "invalid_reservation",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 }
+                }
+            };
+
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync((Reservation)null);
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<NotFoundException>(() => _preOrderService.UpsertPreOrder(_userId, request));
+            Assert.That(exception.Message, Contains.Substring($"Reservation with ID {request.ReservationId} does not exist"));
+        }
+
+        [Test]
+        public void UpsertPreOrder_WithExistingPreOrderForReservation_ShouldThrowConflictException()
+        {
+            // Arrange
+            var request = new UpsertPreOrderRequest
+            {
+                Id = null, // New order
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 }
+                }
+            };
+
+            var reservation = new Reservation
+            {
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "0",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
+            };
+
+            var existingPreOrder = new PreOrder
+            {
+                Id = "preorder123",
+                UserId = _userId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                TimeSlot = "18:00 - 20:00",
+                ReservationDate = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                CreateDate = DateTime.UtcNow,
+                Address = "123 Main St",
+                TotalPrice = 20.99M,
+                Items = new List<PreOrderItem>()
+            };
+
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByReservationIdAsync(request.ReservationId))
+                .ReturnsAsync(existingPreOrder);
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<ConflictException>(() => _preOrderService.UpsertPreOrder(_userId, request));
+            Assert.That(exception.Message, Contains.Substring($"A preorder with ID {existingPreOrder.Id} already exists for reservation ID {request.ReservationId}"));
+        }
+
+        [Test]
+        public void UpsertPreOrder_WithInvalidDishId_ShouldThrowNotFoundException()
+        {
+            // Arrange
+            var request = new UpsertPreOrderRequest
+            {
+                Id = null,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 },
+                    new() { DishId = "invalid_dish", DishQuantity = 1 }
+                }
+            };
+
+            var reservation = new Reservation
+            {
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "0",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
+            };
+
+            var dishes = new List<Dish>
+            {
+                new() { Id = "dish1", Name = "Pizza", Price = 10.99M, Weight = "500g", ImageUrl = "pizza.jpg" }
+            };
+
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByReservationIdAsync(request.ReservationId))
+                .ReturnsAsync((PreOrder)null);
+            _dishRepositoryMock.Setup(x => x.GetDishesByIdsAsync(It.IsAny<List<string>>()))
+                .ReturnsAsync(dishes);
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<NotFoundException>(() => _preOrderService.UpsertPreOrder(_userId, request));
+            Assert.That(exception.Message, Contains.Substring("The following dish IDs do not exist: invalid_dish"));
+        }
+
+        [Test]
+        public void UpsertPreOrder_WithInvalidDishQuantity_ShouldThrowBadRequestException()
+        {
+            // Arrange
+            var request = new UpsertPreOrderRequest
+            {
+                Id = null,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 },
+                    new() { DishId = "dish2", DishQuantity = 0 } // Invalid quantity
+                }
+            };
+
+            var reservation = new Reservation
+            {
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.AddDays(1).ToString("yyyy-MM-dd"),
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "0",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
+            };
+
+            var dishes = new List<Dish>
+            {
+                new() { Id = "dish1", Name = "Pizza", Price = 10.99M, Weight = "500g", ImageUrl = "pizza.jpg" },
+                new() { Id = "dish2", Name = "Pasta", Price = 8.50M, Weight = "400g", ImageUrl = "pasta.jpg" }
+            };
+
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByReservationIdAsync(request.ReservationId))
+                .ReturnsAsync((PreOrder)null);
+            _dishRepositoryMock.Setup(x => x.GetDishesByIdsAsync(It.IsAny<List<string>>()))
+                .ReturnsAsync(dishes);
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<BadRequestException>(() => _preOrderService.UpsertPreOrder(_userId, request));
+            Assert.That(exception.Message, Contains.Substring("Dish quantities must be greater than zero"));
+        }
+
+        [Test]
+        public void UpsertPreOrder_WithinCutoffTime_ShouldThrowBadRequestException()
+        {
+            // Arrange
+            string preOrderId = "preorder123";
+            var request = new UpsertPreOrderRequest
+            {
+                Id = preOrderId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                DishItems = new List<DishItemRequest>
+                {
+                    new() { DishId = "dish1", DishQuantity = 2 }
+                }
+            };
+
+            var reservation = new Reservation
+            {
+                Id = "reservation123",
+                TimeSlot = "18:00 - 20:00",
+                LocationAddress = "123 Main St",
+                Date = DateTime.Now.ToString("yyyy-MM-dd"), // Today
+                GuestsNumber = "2",
+                LocationId = "location1",
+                PreOrder = "0",
+                Status = "Active",
+                TableId = "table1",
+                TableCapacity = "4",
+                TableNumber = "5",
+                TimeFrom = "18:00",
+                TimeTo = "20:00",
+                CreatedAt = DateTime.Now.ToString()
+            };
+
+            var existingPreOrder = new PreOrder
+            {
+                Id = preOrderId,
+                UserId = _userId,
+                ReservationId = "reservation123",
+                Status = "Submitted",
+                TimeSlot = $"{DateTime.Now.AddMinutes(20):HH:mm} - 20:00", // Within 30 min cutoff
+                ReservationDate = DateTime.Now.ToString("yyyy-MM-dd"),
+                CreateDate = DateTime.UtcNow.AddHours(-1),
+                Address = "123 Main St",
+                TotalPrice = 20.99M,
+                Items = new List<PreOrderItem>()
+            };
+
+            _preOrderRepositoryMock.Setup(x => x.GetPreOrderByIdAsync(_userId, preOrderId))
+                .ReturnsAsync(existingPreOrder);
+            _reservationRepositoryMock.Setup(x => x.GetReservationByIdAsync(request.ReservationId))
+                .ReturnsAsync(reservation);
+
+            // Act & Assert
+            var exception = Assert.ThrowsAsync<BadRequestException>(() => _preOrderService.UpsertPreOrder(_userId, request));
+            Assert.That(exception.Message, Contains.Substring("PreOrder can only be modified before 30 minutes of start time"));
         }
 
         #endregion

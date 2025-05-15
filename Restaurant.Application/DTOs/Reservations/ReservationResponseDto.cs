@@ -11,6 +11,8 @@
         public required string LocationId { get; set; }
 
         public required string LocationAddress { get; set; }
+        
+        public required string PreOrder { get; set; }
 
         public required string Status { get; set; }
 
