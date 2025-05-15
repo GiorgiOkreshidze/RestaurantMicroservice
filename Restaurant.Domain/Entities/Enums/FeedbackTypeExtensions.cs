@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace Restaurant.Domain.Entities.Enums
 {
     public static class FeedbackTypeExtensions
@@ -24,7 +19,8 @@ namespace Restaurant.Domain.Entities.Enums
             {
                 "SERVICE_QUALITY" => FeedbackType.ServiceQuality,
                 "CUISINE_EXPERIENCE" => FeedbackType.CuisineExperience,
-                _ => throw new ArgumentException($"Invalid feedback type: {type}", nameof(type))
+                _ => throw new ArgumentException(
+                    $"Invalid feedback type: {type}. Should be either 'SERVICE_QUALITY' or 'CUISINE_EXPERIENCE'.", nameof(type))
             };
         }
     }

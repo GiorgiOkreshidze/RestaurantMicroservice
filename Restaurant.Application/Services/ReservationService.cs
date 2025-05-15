@@ -53,6 +53,23 @@ public class ReservationService(
  
     public async Task<ClientReservationResponse> UpsertReservationAsync(BaseReservationRequest reservationRequest, string userId)
     {
+        // Validate date format
+        if (!IsValidDateFormat(reservationRequest.Date))
+        {
+            throw new BadRequestException("Invalid date format. Use yyyy-MM-dd format.");
+        }
+
+        // Validate time formats
+        if (!IsValidTimeFormat(reservationRequest.TimeFrom) || !IsValidTimeFormat(reservationRequest.TimeTo))
+        {
+            throw new BadRequestException("Invalid time format. Use HH:mm format.");
+        }
+        
+        if (!int.TryParse(reservationRequest.GuestsNumber, out int guestCount) || guestCount <= 0)
+        {
+            throw new BadRequestException("Guest number must be a positive integer.");
+        }
+        
         var reservationDoesNotExist = !string.IsNullOrEmpty(reservationRequest.Id) && !await reservationRepository.ReservationExistsAsync(reservationRequest.Id);
         if (reservationDoesNotExist)
         {
@@ -96,6 +113,26 @@ public class ReservationService(
 
     public async Task<IEnumerable<ReservationResponseDto>> GetReservationsAsync(ReservationsQueryParameters queryParams, string userId, string email, string role)
     {
+        // Validate date if provided
+        if (!string.IsNullOrEmpty(queryParams.Date) && !IsValidDateFormat(queryParams.Date))
+        {
+            throw new BadRequestException("Invalid date format in query. Use yyyy-MM-dd format.");
+        }
+        
+        if (!string.IsNullOrEmpty(queryParams.TimeFrom) && !IsValidTimeFormat(queryParams.TimeFrom))
+        {
+            throw new BadRequestException("Invalid time format for TimeFrom. Use HH:mm format.");
+        }
+        
+        if (!string.IsNullOrEmpty(queryParams.TableId))
+        {
+            var table = await tableRepository.GetTableById(queryParams.TableId);
+            if (table is null)
+            {
+                throw new NotFoundException("Table", queryParams.TableId);
+            }
+        }
+        
         IEnumerable<Reservation> reservations;
         // Compare strings directly instead of converting to enum
         if (role.Equals("Customer", StringComparison.OrdinalIgnoreCase))
@@ -309,6 +346,27 @@ public class ReservationService(
 
     #region Helper Methods For Reservation
     
+    private bool IsValidDateFormat(string date)
+    {
+        // Check for proper yyyy-MM-dd format
+        return DateTime.TryParseExact(
+            date,
+            "yyyy-MM-dd", 
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None, 
+            out _);
+    }
+
+    private bool IsValidTimeFormat(string time)
+    {
+        // Check for proper HH:mm format
+        return TimeSpan.TryParseExact(
+            time, 
+            "hh\\:mm", 
+            CultureInfo.InvariantCulture, 
+            out _);
+    }
+    
     private bool BeValidTimeNotInPast(string date, string time)
     {
         if (DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture,
@@ -475,6 +533,11 @@ public class ReservationService(
         if (!int.TryParse(guestsNumber, out int guests))
         {
             throw new ConflictException("Invalid number format for GuestsNumber.");
+        }
+        
+        if (guests <= 0)
+        {
+            throw new BadRequestException("Guest number must be positive.");
         }
         
         int capacity = table.Capacity;

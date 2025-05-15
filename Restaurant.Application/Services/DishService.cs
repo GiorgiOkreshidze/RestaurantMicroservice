@@ -12,6 +12,12 @@ namespace Restaurant.Application.Services
     {
         public async Task<IEnumerable<DishDto>> GetSpecialtyDishesByLocationAsync(string locationId)
         {
+            var locationExists = await locationRepository.LocationExistsAsync(locationId);
+            if (!locationExists)
+            {
+                throw new NotFoundException("Location", locationId);
+            }
+            
             var dishes = await dishRepository.GetSpecialtyDishesByLocationAsync(locationId);
             return mapper.Map<IEnumerable<DishDto>>(dishes);
         }
