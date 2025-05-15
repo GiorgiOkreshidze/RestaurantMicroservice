@@ -44,26 +44,17 @@ public class PreOrderService(
     {
         ValidateInputParameters(userId, request);
         var reservationId = request.ReservationId;
-        await ValidateReservation(reservationId);
-        
-        if (request.DishItems.Count != 0)
-        {
-            await ValidateDishItems(request.DishItems);
-        }
-        
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId) ?? throw new NotFoundException($"Reservation with ID {reservationId} does not exist");
         if (string.IsNullOrEmpty(request.Id))
         {
             await ValidateNoExistingPreOrderForReservation(reservationId);
         }
-        
+       
         var existingPreOrder = await GetAndValidateExistingPreOrder(userId, request);
-        var totalPrice = Utils.CalculateTotalPrice(
-            request.DishItems,
-            d => d.DishPrice,
-            d => d.DishQuantity);
-
-        var preOrder = CreatePreOrderEntity(userId, request, existingPreOrder, totalPrice);
-        PopulatePreOrderItems(preOrder, request.DishItems);
+        var dishes =  await ValidateAndGetDishItems(request.DishItems);
+        var totalPrice = ValidateAndCalculateTotalPrice(request.DishItems, dishes);
+        var preOrder = CreatePreOrderEntity(userId, request, reservation, existingPreOrder, totalPrice);
+        PopulatePreOrderItems(preOrder, request.DishItems, dishes);
 
         if (existingPreOrder != null)
         {
@@ -74,12 +65,13 @@ public class PreOrderService(
             await preOrderRepository.CreatePreOrderAsync(preOrder);
         }
 
-        // Send confirmation email for submitted orders
         await SendConfirmationEmailIfSubmitted(userId, preOrder.Id!, request);
-
-        // Return updated cart
-        return await GetUserCart(userId);
+        await UpdateReservationPreOrderCount(preOrder.Id!);
+        
+        var cart = await GetUserCart(userId);
+        return cart;
     }
+         
 
     public async Task<PreOrderDishConfirmDto> GetPreOrderDishes(string reservationId)
     {
@@ -106,6 +98,7 @@ public class PreOrderService(
             throw new BadRequestException("Dish ID cannot be null or empty");
 
         await preOrderRepository.UpdatePreOrderDishesStatusAsync(request.PreOrderId, request.DishId, request.DishStatus);
+        await UpdateReservationPreOrderCount(request.PreOrderId);
     }
     
     private async Task ValidatePreOrderId(string preOrderId)
@@ -145,7 +138,7 @@ public class PreOrderService(
         if (string.IsNullOrEmpty(request.ReservationId))
             throw new BadRequestException("Reservation ID cannot be null or empty");
     
-        var validStatuses = new[] { "New", "Submitted", "Cancelled", "Finished" };
+        var validStatuses = new[] {"Submitted", "Cancelled" };
         if (string.IsNullOrEmpty(request.Status))
             throw new BadRequestException("Status cannot be null or empty");
         if (!validStatuses.Contains(request.Status))
@@ -168,29 +161,27 @@ public class PreOrderService(
         return existingPreOrder;
     }
 
-    private async Task ValidateReservation(string reservationId)
-    {
-        bool reservationExists = await reservationRepository.ReservationExistsAsync(reservationId);
-        if (!reservationExists)
-            throw new NotFoundException($"Reservation with ID {reservationId} does not exist");
-    }
-
-    private async Task ValidateDishItems(List<DishItemDto> dishItems)
+    private async Task<IEnumerable<Dish>> ValidateAndGetDishItems(List<DishItemRequest> dishItems)
     {
         var emptyDishIds = dishItems.Where(item => string.IsNullOrEmpty(item.DishId)).ToList();
         if (emptyDishIds.Any())
             throw new BadRequestException("DishId should not be empty");
-        
+    
         var dishIds = dishItems.Select(item => item.DishId).ToList();
         var existingDishes = await dishRepository.GetDishesByIdsAsync(dishIds);
+    
+        // Convert existingDishes to a list to prevent multiple enumeration
+        var existingDishesList = existingDishes.ToList();
 
-        var invalidDishIds = dishIds.Except(existingDishes.Select(d => d.Id)).ToList();
+        var invalidDishIds = dishIds.Except(existingDishesList.Select(d => d.Id)).ToList();
         if (invalidDishIds.Any())
             throw new NotFoundException(
                 $"The following dish IDs do not exist: {string.Join(", ", invalidDishIds)}");
+    
+        return existingDishesList; 
     }
 
-    private PreOrder CreatePreOrderEntity(string userId, UpsertPreOrderRequest request, PreOrder? existingPreOrder,
+    private PreOrder CreatePreOrderEntity(string userId, UpsertPreOrderRequest request, Reservation reservation, PreOrder? existingPreOrder,
         decimal totalPrice)
     {
         if (existingPreOrder != null)
@@ -201,9 +192,9 @@ public class PreOrderService(
                 Id = existingPreOrder.Id,
                 ReservationId = request.ReservationId,
                 Status = request.Status,
-                TimeSlot = request.TimeSlot,
-                Address = request.Address,
-                ReservationDate = request.ReservationDate,
+                TimeSlot = reservation.TimeSlot,
+                Address = reservation.LocationAddress,
+                ReservationDate = reservation.Date,
                 CreateDate = existingPreOrder.CreateDate,
                 TotalPrice = totalPrice,
                 Items = new List<PreOrderItem>()
@@ -217,31 +208,36 @@ public class PreOrderService(
             Id = preOrderId,
             ReservationId = request.ReservationId,
             Status = request.Status,
-            TimeSlot = request.TimeSlot,
-            Address = request.Address,
-            ReservationDate = request.ReservationDate,
+            TimeSlot = reservation.TimeSlot,
+            Address = reservation.LocationAddress,
+            ReservationDate = reservation.Date,
             CreateDate = DateTime.UtcNow,
             TotalPrice = totalPrice,
             Items = new List<PreOrderItem>()
         };
     }
 
-    private void PopulatePreOrderItems(PreOrder preOrder, List<DishItemDto> dishItems)
+    private void PopulatePreOrderItems(PreOrder preOrder, List<DishItemRequest> dishItems, IEnumerable<Dish> dishes)
     {
-        foreach (var item in dishItems)
+        var dishMap = dishes.ToDictionary(d => d.Id);
+
+        foreach (var request in dishItems)
         {
-            var preOrderItem = new PreOrderItem
+            if (dishMap.TryGetValue(request.DishId, out var dish))
             {
-                Id = Guid.NewGuid()
-                    .ToString("N"),
-                DishId = item.DishId,
-                DishName = item.DishName,
-                DishImageUrl = item.DishImageUrl,
-                DishStatus = "New",
-                Price = item.DishPrice,
-                Quantity = item.DishQuantity,
-            };
-            preOrder.Items.Add(preOrderItem);
+                var preOrderItem = new PreOrderItem
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    DishId = dish.Id,
+                    DishName = dish.Name,
+                    DishImageUrl = dish.ImageUrl,
+                    DishStatus = "New",
+                    Price = dish.Price,
+                    Quantity = request.DishQuantity
+                };
+            
+                preOrder.Items.Add(preOrderItem);
+            }
         }
     }
 
@@ -284,7 +280,40 @@ public class PreOrderService(
         var existingPreOrderForReservation = await preOrderRepository.GetPreOrderByReservationIdAsync(reservationId);
         if (existingPreOrderForReservation != null)
         {
-            throw new ConflictException($"A preorder already exists for reservation ID {reservationId}. Please update the existing preorder instead of creating a new one.");
+            throw new ConflictException($"A preorder with ID {existingPreOrderForReservation.Id} already exists for reservation ID {reservationId}. Please update the existing preorder instead of creating a new one.");
         }
+    }
+    
+    private async Task UpdateReservationPreOrderCount(string preOrderId)
+    {
+        var preorder = await preOrderRepository.GetPreOrderOnlyByIdAsync(preOrderId) 
+                       ?? throw new NotFoundException("PreOrder", preOrderId);
+    
+        var reservation = await reservationRepository.GetReservationByIdAsync(preorder.ReservationId) 
+                          ?? throw new NotFoundException($"Reservation with ID {preorder.ReservationId} does not exist");
+    
+        reservation.PreOrder = preorder.Items
+            .Where(i => i.DishStatus != "Cancelled")
+            .Sum(i => i.Quantity)
+            .ToString();
+    
+        await reservationRepository.UpsertReservationAsync(reservation);
+    }
+    
+    private decimal ValidateAndCalculateTotalPrice(IEnumerable<DishItemRequest> dishItems, IEnumerable<Dish> dishes)
+    {
+        var dishPriceMap = dishes.ToDictionary(d => d.Id, d => d.Price);
+    
+        var invalidItems = dishItems.Where(item => item.DishQuantity <= 0).ToList();
+        if (invalidItems.Any())
+        {
+            var invalidDishIds = string.Join(", ", invalidItems.Select(item => item.DishId));
+            throw new BadRequestException($"Dish quantities must be greater than zero. Invalid quantities found for dishes: {invalidDishIds}");
+        }
+    
+        return dishItems.Sum(item => 
+            dishPriceMap.TryGetValue(item.DishId, out var price) 
+                ? price * item.DishQuantity 
+                : 0);
     }
 }
