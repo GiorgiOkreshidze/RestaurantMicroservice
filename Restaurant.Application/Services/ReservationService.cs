@@ -242,7 +242,7 @@ public class ReservationService(
             throw new ConflictException("The reservation should have status 'Reserved' to start.");
         }
 
-        reservation.Status = ReservationStatus.InProgress.ToString();
+        reservation.Status = "In Progress";
         await ProcessPreOrdersAsync(reservationId, userId);
         var order = await orderRepository.GetOrderByReservationIdAsync(reservationId);
         if (order != null)
