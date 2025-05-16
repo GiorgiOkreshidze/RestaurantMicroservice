@@ -76,9 +76,14 @@ public class PreOrderService(
         if (string.IsNullOrEmpty(reservationId))
             throw new BadRequestException("PreOrder ID cannot be null or empty");
 
-        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId) ?? throw new NotFoundException("Reservation", reservationId);
+        var reservation = await reservationRepository.GetReservationByIdAsync(reservationId) 
+                          ?? throw new NotFoundException("Reservation", reservationId);
         var preOrder = await preOrderRepository.GetPreOrderByReservationIdAsync(reservationId)
                        ?? throw new NotFoundException("PreOrder for reservation", reservationId);
+        
+        if (preOrder.Status != "Submitted")
+            throw new BadRequestException("Only submitted pre-orders can be viewed by waiters.");
+        
         var result = mapper.Map<PreOrderDishConfirmDto>(preOrder);
         result.CustomerName = reservation.UserInfo;
         result.TableNumber = reservation.TableNumber;
@@ -96,9 +101,27 @@ public class PreOrderService(
             throw new BadRequestException("Dish ID cannot be null or empty");
 
         await preOrderRepository.UpdatePreOrderDishesStatusAsync(request.PreOrderId, request.DishId, request.DishStatus);
+        await UpdatePreOrderTotalPrice(request.PreOrderId);
         await UpdateReservationPreOrderCount(request.PreOrderId);
     }
+
+    private async Task UpdatePreOrderTotalPrice(string preOrderId)
+    {
+        var preOrder = await preOrderRepository.GetPreOrderOnlyByIdAsync(preOrderId) 
+                       ?? throw new NotFoundException("PreOrder", preOrderId);
     
+        // Calculate total price only for non-cancelled dishes
+        decimal newTotalPrice = preOrder.Items
+            .Where(item => item.DishStatus != "Cancelled")
+            .Sum(item => item.Price * item.Quantity);
+    
+        // Update the PreOrder with new total price
+        preOrder.TotalPrice = newTotalPrice;
+    
+        // Save the updated PreOrder
+        await preOrderRepository.UpdatePreOrderAsync(preOrder);
+    }
+
     private async Task ValidatePreOrderId(string preOrderId)
     {
         if (string.IsNullOrEmpty(preOrderId))
