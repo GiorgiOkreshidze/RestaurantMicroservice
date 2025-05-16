@@ -4,6 +4,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.14] - 2025-05-16
+### Fixed
+- Updated total amount calculation for pre-orders to exclude cancelled dishes.
+- Adjusted logic to return only submitted pre-orders to waiters.
+
+## [0.25.13] - 2025-05-15
+### Fixed
+- Updated reservation status handling and improved pre-order count updates.
+
+## [0.25.12] - 2025-05-15
+### Feature
+- Enhanced pre-order handling with a new request structure and improved validation.
+- Enhanced input validation and error handling in reservation and feedback services.
+- Added `StartReservation` feature to mark reservations as "in progress".
+- Refactored reporting service to include `WaiterSummaryResponse`.
+
+## [0.25.11] - 2025-05-14
+### Fixed
+- Fixed JSON deserialization issue.
+
+## [0.25.10] - 2025-05-14
+### Feature
+- Added endpoints for retrieving and updating pre-order dish statuses for waiters.
+- Integrated Amazon SES for email notifications and configured email settings.
+- Refactored pre-order handling to use reservation ID.
+
+## [0.25.9] - 2025-05-13
+### Feature
+- Implemented second part ("sails") of the reporting system.
+- 
+### Fixed
+- Enhanced validation in `PreOrderService` to use `BadRequestException`.
+- Improved conflict exception messages and added `NotFoundException` on reservation update when not found.
+
+## [0.25.8] - 2025-05-12
+### Feature
+- Integrated RabbitMQ for event messaging.
+- Updated RabbitMQ environment variable names for consistency.
+- Updated RabbitMQ username environment variable.\
+
+### Fixed
+- Fixed reservation past-date validation.
+- Fixed exception middleware.
+
+## [0.25.7] - 2025-05-10
+### Feature
+- Implemented `AwsCredentialsRefresher` service for periodic AWS credential refresh.
+
+## [0.25.6] - 2025-05-09
+### Feature
+- Migrated `RestaurantTable` entity to MongoDB.
+- Migrated `Order` entity and repository from DynamoDB to MongoDB.
+- Migrated `PreOrder` and `PreOrderItem` entities from DynamoDB to MongoDB.
+
+## [0.25.5] - 2025-05-08
+### Feature
+- Refactored `EmployeeRepository` and `WaiterRepository` to use primary Mongo collections.
+- Migrated `reservations` table to MongoDB.
+- Enhanced report date validations (ISO format, future date checks).
+- Migrated `Feedback` entity and repository to MongoDB.
+
+## [0.25.4] - 2025-05-07
+### Feature
+- Migrated `Dish` entity to MongoDB and updated price type to `decimal`.
+
+## [0.25.3] - 2025-05-06
+### Feature
+- Integrated locations into MongoDB.
+- Updated MongoDB connection string environment variables and added credentials.
+
+## [0.25.2] - 2025-05-05
+### Fixed
+- Fixed order validation.
+- Added validations on report requests.
+
+## [0.25.1] - 2025-05-01
+### Fixed
+- Fixed `send report` endpoint.
+- Fixed incorrect URL in configuration.
+
 ## [0.25.0] - 2025-05-01
 ### Added
 - Added admin functionality.
