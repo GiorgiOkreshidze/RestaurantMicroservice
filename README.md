@@ -1,5 +1,13 @@
 # generations
 
+## Diagrams
+![Sprint 3 Diagram](https://github.com/user-attachments/assets/9fc39610-2297-47d4-be6d-5dcfc5fde228)
+
+![Sprint 4 Diagram](https://github.com/user-attachments/assets/67724a67-75bb-45fa-b221-c4011510b059)
+
+![Sprint 5 Diagram](https://github.com/user-attachments/assets/ab053a10-6d68-4b98-9069-9fbfbf11fdca)
+
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
